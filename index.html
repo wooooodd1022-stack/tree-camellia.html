@@ -10,14 +10,18 @@
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&display=swap" rel="stylesheet">
     <style>
+        /* 감성적 제목에만 브러쉬 폰트 적용 */
+        .brush-font { font-family: 'Nanum Brush Script', cursive; }
+        
+        /* 모달 및 입력창은 시각적 안정을 위해 시스템 기본 폰트로 고정 */
         body {
-            font-family: 'Nanum Brush Script', cursive;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: radial-gradient(circle at bottom, #161625 0%, #050505 100%);
             color: #f1f5f9;
             overflow: hidden;
             margin: 0;
             height: 100dvh;
-            touch-action: none;
+            touch-action: manipulation;
         }
 
         #intro-screen {
@@ -42,107 +46,98 @@
             transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        .intro-instruction {
-            margin-top: 2.5rem;
-            font-size: clamp(1.6rem, 5vw, 2.4rem);
-            color: #fda4af;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } }
-
-        /* 나무 컨테이너 수정: 화면 비율에 상관없이 나무 전체가 보이도록 설정 */
         #memorial-tree-container {
             position: absolute;
-            bottom: 5vh; /* 바닥에서 약간 띄워 시각적 안정감 부여 */
+            bottom: 0;
             left: 50%;
             transform: translateX(-50%);
-            width: 90vw;
-            height: 70vh; /* 노트북에서도 전체가 보이도록 높이 조절 */
-            max-width: 800px;
-            max-height: 800px;
+            width: 100%;
+            max-width: 850px;
+            height: 82vh;
             z-index: 2;
             opacity: 0;
             transition: opacity 2s ease;
             display: flex;
             justify-content: center;
             align-items: flex-end;
-            pointer-events: none;
         }
 
-        #tree-svg {
-            width: 100%;
-            height: 100%;
-            /* SVG가 컨테이너 내에서 잘리지 않고 전체가 들어오도록 함 */
-        }
-
-        #flower-layer {
-            position: absolute;
-            inset: 0;
-            pointer-events: auto;
-            z-index: 5;
-        }
+        #tree-svg { width: 100%; height: 100%; }
 
         .flower-node { 
             position: absolute; 
-            z-index: 10;
+            z-index: 100;
             pointer-events: auto;
             cursor: pointer;
             transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-            transform: translate(-50%, -50%); /* 중심점 정렬 */
         }
 
+        .camellia-flower-svg {
+            width: clamp(40px, 8vw, 55px);
+            height: clamp(40px, 8vw, 55px);
+            filter: drop-shadow(0 3px 6px rgba(0,0,0,0.5));
+        }
+
+        /* 모달 내부 스타일 - 기본 폰트로 완전히 고정 */
         #memorial-modal {
             display: none; 
             position: fixed; 
             top: 50%; 
             left: 50%; 
             transform: translate(-50%, -50%);
-            background: rgba(12, 8, 12, 0.98); 
-            padding: 2.5rem 1.5rem; 
-            border-radius: 40px;
-            border: 2px solid rgba(225, 29, 72, 0.5); 
-            z-index: 5000;
-            width: 90%; 
-            max-width: 480px;
-            box-shadow: 0 0 150px rgba(0, 0, 0, 1); 
+            background: rgba(20, 15, 20, 0.98); 
+            padding: 2.5rem 2rem; 
+            border-radius: 30px;
+            border: 1px solid rgba(225, 29, 72, 0.3); 
+            z-index: 2000; 
+            width: 92%; 
+            max-width: 450px;
+            box-shadow: 0 0 100px rgba(0, 0, 0, 1); 
             text-align: center;
         }
 
         #msg-input {
-            width: 100%; height: 200px; background: #2a0812; color: #fff; 
-            padding: 20px; border: none; border-radius: 25px; resize: none;
-            font-family: 'Nanum Brush Script', cursive; text-align: center;
-            outline: none; font-size: 1.8rem;
-            line-height: 1.4;
-            -webkit-appearance: none;
+            width: 100%; 
+            height: 180px; 
+            background: #1a1a1a; 
+            color: #fff; 
+            padding: 20px; 
+            border: 1px solid #333; 
+            border-radius: 15px; 
+            resize: none;
+            /* 폰트 상속을 강제하고 굴림이나 붓글씨가 튀지 않도록 함 */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            outline: none;
+            transition: border-color 0.2s;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
         }
+        
+        #msg-input:focus { border-color: #e11d48; }
 
         .btn-send {
-            background: #e11d48; color: white; padding: 12px 50px; border-radius: 40px;
-            font-size: 2.2rem; transition: 0.3s; border: none; cursor: pointer;
-            margin-top: 1rem;
-            box-shadow: 0 5px 15px rgba(225, 29, 72, 0.4);
-            touch-action: manipulation;
+            background: #e11d48; color: white; padding: 12px 40px; border-radius: 12px;
+            font-size: 1.1rem; font-weight: 600; transition: 0.2s; border: none; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(225, 29, 72, 0.3);
+            font-family: inherit;
         }
-        .btn-send:active { transform: scale(0.95); opacity: 0.8; }
-        .btn-send:disabled { background: #4c1d24; cursor: not-allowed; opacity: 0.6; }
+        .btn-send:active { transform: scale(0.98); }
+        .btn-send:disabled { background: #444; cursor: not-allowed; }
 
-        .tooltip {
-            position: fixed; background: #fff; color: #0f172a; padding: 16px 24px;
-            border-radius: 22px; font-size: 1.8rem; display: none; z-index: 6000;
-            box-shadow: 0 15px 45px rgba(0,0,0,0.6); pointer-events: none;
-            max-width: 280px; text-align: center;
-        }
+        .star { position: absolute; background: white; border-radius: 50%; opacity: 0.2; animation: twinkle var(--t) infinite; }
+        @keyframes twinkle { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.5; } }
 
-        .star { position: absolute; background: white; border-radius: 50%; opacity: 0.25; pointer-events: none; }
-        .fade-out { opacity: 0 !important; pointer-events: none !important; }
-        .visible-ui { opacity: 1 !important; pointer-events: auto !important; }
+        .fade-out { opacity: 0; visibility: hidden; }
+        .hidden-ui { opacity: 0; pointer-events: none; transition: opacity 1.5s ease; }
+        .visible-ui { opacity: 1; pointer-events: auto; }
         
-        #write-trigger {
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 1s;
+        .tooltip {
+            position: fixed; background: #fff; color: #111; padding: 14px 20px;
+            border-radius: 15px; font-size: 1rem; display: none; z-index: 3000;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); pointer-events: none;
+            max-width: 250px; text-align: center; font-weight: 500;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
     </style>
 </head>
@@ -150,10 +145,11 @@
 
     <div id="stars"></div>
 
+    <!-- 인트로 -->
     <div id="intro-screen">
-        <h2 class="text-4xl text-rose-100 mb-14">4월엔 동백꽃을 달아주세요</h2>
-        <div class="intro-camellia" id="start-btn">
-            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <h2 class="brush-font text-5xl text-rose-100 mb-14">4월엔 동백꽃을 달아주세요</h2>
+        <div class="intro-camellia" onclick="startMemorial()">
+            <svg viewBox="0 0 100 100">
                 <circle cx="50" cy="32" r="23" fill="#e11d48" />
                 <circle cx="50" cy="68" r="23" fill="#e11d48" />
                 <circle cx="32" cy="50" r="23" fill="#e11d48" />
@@ -161,35 +157,37 @@
                 <circle cx="50" cy="50" r="14" fill="#fbbf24" />
             </svg>
         </div>
-        <p class="intro-instruction">동백꽃을 눌러 평화의 나무를 만나보세요</p>
+        <p class="brush-font text-3xl text-rose-300 mt-10 animate-pulse">동백꽃을 눌러 평화의 나무를 만나보세요</p>
     </div>
 
-    <div id="main-ui" class="opacity-0 pointer-events-none absolute top-10 left-0 w-full text-center z-50 px-5 transition-opacity duration-1000">
-        <h1 class="text-rose-500 text-5xl md:text-7xl" style="text-shadow: 0 0 25px rgba(225, 29, 72, 0.6);">4월엔 동백꽃을 달아주세요</h1>
-        <p class="text-2xl text-slate-300 mt-2">우리 모두의 마음이 모여 피어납니다.</p>
+    <!-- 헤더 -->
+    <div id="main-ui" class="hidden-ui absolute top-10 left-0 w-full text-center z-50 px-5">
+        <h1 class="brush-font text-rose-500 text-6xl" style="text-shadow: 0 0 20px rgba(225,29,72,0.4);">4월엔 동백꽃을 달아주세요</h1>
+        <p class="text-xl text-slate-400 mt-2">제주 4.3 희생자들을 함께 기억합니다.</p>
     </div>
 
+    <!-- 나무 -->
     <div id="memorial-tree-container">
-        <!-- preserveAspectRatio를 xMidYMid meet로 설정하여 나무 전체가 중앙에 배치되도록 함 -->
-        <svg id="tree-svg" viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-            <g fill="#080808">
+        <svg id="tree-svg" viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg">
+            <g fill="#0a0a0a">
                 <path d="M255,800 L345,800 Q325,580 310,480 L290,480 Q275,580 255,800 Z" />
             </g>
-            <g id="tree-branches" stroke="#080808" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M300,480 Q180,450 60,490" stroke-width="20" />
-                <path d="M300,480 Q420,420 540,460" stroke-width="20" />
+            <g id="tree-branches" stroke="#0a0a0a" fill="none" stroke-linecap="round" stroke-width="20">
+                <path d="M300,480 Q180,450 60,490" />
+                <path d="M300,480 Q420,420 540,460" />
                 <path d="M300,380 Q150,340 100,280" stroke-width="15" />
                 <path d="M300,380 Q450,300 500,270" stroke-width="15" />
                 <path d="M300,480 Q290,250 300,40" stroke-width="18" />
             </g>
             <g id="leaf-layer"></g>
         </svg>
-        <div id="flower-layer"></div>
+        <div id="flower-layer" class="absolute inset-0 pointer-events-none"></div>
     </div>
 
-    <div id="write-trigger" class="fixed bottom-10 right-10 w-24 h-24 cursor-pointer z-[4000]">
-        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="50" cy="50" r="48" fill="rgba(225, 29, 72, 0.4)" stroke="#e11d48" stroke-width="2.5" />
+    <!-- 작성 버튼 -->
+    <div id="write-trigger" class="hidden-ui fixed bottom-10 right-10 w-20 h-20 cursor-pointer z-50" onclick="openMemorial()">
+        <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="48" fill="rgba(225, 29, 72, 0.3)" stroke="#e11d48" stroke-width="2" />
             <circle cx="50" cy="35" r="18" fill="#e11d48" />
             <circle cx="50" cy="65" r="18" fill="#e11d48" />
             <circle cx="35" cy="50" r="18" fill="#e11d48" />
@@ -198,20 +196,22 @@
         </svg>
     </div>
 
+    <!-- 모달 -->
     <div id="memorial-modal">
-        <h2 class="text-4xl text-rose-200 mb-6">마음 한 송이 피우기</h2>
+        <h2 class="text-2xl font-bold text-rose-100 mb-5">마음 한 송이 피우기</h2>
         <textarea id="msg-input" maxlength="150" placeholder="기억의 문장을 적어주세요..."></textarea>
-        <div id="char-indicator" class="text-rose-400 text-xl mt-2 text-right">0 / 150</div>
-        <div class="flex justify-center gap-10 mt-6">
-            <button id="close-btn" class="text-2xl text-slate-500">닫기</button>
-            <button id="send-btn" class="btn-send">꽃 피우기</button>
+        <div id="char-indicator" class="text-sm text-gray-500 mt-2 text-right">0 / 150</div>
+        <div class="flex justify-center gap-6 mt-8">
+            <button onclick="closeMemorial()" class="text-gray-400 hover:text-white px-4 transition-colors">닫기</button>
+            <button id="send-btn" onclick="plantFlower()" class="btn-send">꽃 피우기</button>
         </div>
     </div>
 
     <div id="tooltip" class="tooltip"></div>
 
     <script>
-        const firebaseConfig = {
+        // Firebase 설정: 환경 변수가 있는 경우 우선 사용, 없으면 하드코딩된 값 사용
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyDTrSN6wwJEAjiL3HwMh9woNmJ5NwSg1cQ",
             authDomain: "tree-7ef79.firebaseapp.com",
             projectId: "tree-7ef79",
@@ -223,97 +223,101 @@
         const app = firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore(app);
         const auth = firebase.auth(app);
-        const appId = 'camellia-memorial-final-v3'; 
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'camellia-memorial-final-v3';
 
         async function initAuth() {
             try {
-                if (!auth.currentUser) await auth.signInAnonymously();
-            } catch (e) { console.error("Auth error:", e); }
+                if (!auth.currentUser) {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await auth.signInWithCustomToken(__initial_auth_token);
+                    } else {
+                        await auth.signInAnonymously();
+                    }
+                }
+            } catch (e) {
+                console.error("Auth Error:", e);
+            }
         }
 
         function createStars() {
             const container = document.getElementById('stars');
-            for (let i = 0; i < 70; i++) {
+            for (let i = 0; i < 60; i++) {
                 const s = document.createElement('div');
                 s.className = 'star';
-                const size = Math.random() * 2 + 0.5;
+                const size = Math.random() * 2;
                 s.style.width = size + 'px'; s.style.height = size + 'px';
                 s.style.top = Math.random() * 100 + '%'; s.style.left = Math.random() * 100 + '%';
+                s.style.setProperty('--t', (Math.random() * 4 + 2) + 's');
                 container.appendChild(s);
             }
         }
 
-        function generateLeaves() {
-            const leafLayer = document.getElementById('leaf-layer');
-            const branches = document.querySelectorAll('#tree-branches path');
-            branches.forEach(branch => {
-                const length = branch.getTotalLength();
-                for (let i = 0; i < length/15; i++) {
-                    const point = branch.getPointAtLength(Math.random() * length);
-                    const leaf = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
-                    leaf.setAttribute("cx", point.x + (Math.random()-0.5)*30);
-                    leaf.setAttribute("cy", point.y + (Math.random()-0.5)*30);
-                    leaf.setAttribute("rx", 10); leaf.setAttribute("ry", 6);
-                    leaf.setAttribute("fill", "#1a2e05");
-                    leaf.setAttribute("transform", `rotate(${Math.random()*360} ${leaf.getAttribute("cx")} ${leaf.getAttribute("cy")})`);
-                    leafLayer.appendChild(leaf);
-                }
-            });
+        function startMemorial() {
+            document.getElementById('intro-screen').classList.add('fade-out');
+            setTimeout(() => {
+                document.getElementById('memorial-tree-container').style.opacity = '1';
+                document.getElementById('main-ui').classList.add('visible-ui');
+                document.getElementById('write-trigger').classList.add('visible-ui');
+                generateLeaves();
+                loadFlowers();
+            }, 800);
         }
 
-        const intro = document.getElementById('intro-screen');
-        const startBtn = document.getElementById('start-btn');
-        const modal = document.getElementById('memorial-modal');
-        const trigger = document.getElementById('write-trigger');
-        const sendBtn = document.getElementById('send-btn');
-        const closeBtn = document.getElementById('close-btn');
-        const msgInput = document.getElementById('msg-input');
-
-        startBtn.addEventListener('click', () => {
-            intro.classList.add('fade-out');
-            document.getElementById('memorial-tree-container').style.opacity = '1';
-            document.getElementById('main-ui').classList.add('visible-ui');
-            trigger.classList.add('visible-ui');
-            generateLeaves();
-            loadFlowers();
-        });
-
-        trigger.addEventListener('click', () => {
+        function openMemorial() {
+            const modal = document.getElementById('memorial-modal');
             modal.style.display = 'block';
-            msgInput.focus();
-        });
+            document.getElementById('msg-input').focus();
+        }
 
-        closeBtn.addEventListener('click', () => {
+        function closeMemorial() {
+            const modal = document.getElementById('memorial-modal');
             modal.style.display = 'none';
-        });
+            const input = document.getElementById('msg-input');
+            const btn = document.getElementById('send-btn');
+            input.value = '';
+            document.getElementById('char-indicator').innerText = '0 / 150';
+            btn.disabled = false;
+            btn.innerText = "꽃 피우기";
+        }
 
-        sendBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
+        async function plantFlower() {
+            const msgInput = document.getElementById('msg-input');
+            const btn = document.getElementById('send-btn');
             const msg = msgInput.value.trim();
+            
             if (!msg) return;
 
-            sendBtn.disabled = true;
-            sendBtn.innerText = "피우는 중...";
+            btn.disabled = true;
+            btn.innerText = "피우는 중...";
 
             try {
+                // 인증 확인
                 await initAuth();
-                const x = Math.random() * 70 + 15; 
-                const y = Math.random() * 50 + 15; 
+                
+                // 위치 계산
+                const x = Math.random() * 60 + 20;
+                const y = Math.random() * 50 + 10;
 
+                // 데이터 전송 (완료될 때까지 await)
                 await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
-                    message: msg, x, y, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    message: msg, 
+                    x: x, 
+                    y: y, 
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                msgInput.value = '';
-                document.getElementById('char-indicator').innerText = '0 / 150';
-                modal.style.display = 'none';
-            } catch (err) {
-                console.error("전송 실패:", err);
-            } finally {
-                sendBtn.disabled = false;
-                sendBtn.innerText = "꽃 피우기";
+                // 전송 완료 후 즉시 닫기 호출
+                closeMemorial();
+                
+            } catch (e) {
+                console.error("Firebase Error:", e);
+                btn.innerText = "전송 실패";
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerText = "꽃 피우기";
+                }, 2000);
             }
-        });
+        }
 
         function loadFlowers() {
             db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers')
@@ -324,7 +328,7 @@
                             renderFlower(d.x, d.y, d.message);
                         }
                     });
-                });
+                }, err => console.error("Snapshot error:", err));
         }
 
         function renderFlower(x, y, msg) {
@@ -332,36 +336,68 @@
             const wrap = document.createElement('div');
             wrap.className = 'flower-node';
             wrap.style.left = x + '%'; wrap.style.top = y + '%';
-            
+            wrap.style.transform = `translate(-50%, -50%) scale(0)`;
+
             wrap.innerHTML = `
-                <svg viewBox="0 0 100 100" class="camellia-flower-svg" style="width:clamp(30px, 4vw, 45px); height:clamp(30px, 4vw, 45px);">
-                    <circle cx="50" cy="30" r="22" fill="#e11d48" />
-                    <circle cx="50" cy="70" r="22" fill="#e11d48" />
-                    <circle cx="30" cy="50" r="22" fill="#e11d48" />
-                    <circle cx="70" cy="50" r="22" fill="#e11d48" />
-                    <circle cx="50" cy="50" r="12" fill="#fbbf24" />
+                <svg viewBox="0 0 100 100" class="camellia-flower-svg">
+                    <circle cx="50" cy="30" r="23" fill="#e11d48" />
+                    <circle cx="50" cy="70" r="23" fill="#e11d48" />
+                    <circle cx="30" cy="50" r="23" fill="#e11d48" />
+                    <circle cx="68" cy="50" r="23" fill="#e11d48" />
+                    <circle cx="50" cy="50" r="14" fill="#fbbf24" />
                 </svg>
             `;
 
-            wrap.addEventListener('click', (e) => {
+            const showTip = (e) => {
                 const tt = document.getElementById('tooltip');
                 tt.innerText = msg;
                 tt.style.display = 'block';
-                tt.style.left = (e.clientX - 100) + 'px';
-                tt.style.top = (e.clientY - 100) + 'px';
-                setTimeout(() => tt.style.display = 'none', 3000);
-            });
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                tt.style.left = Math.min(window.innerWidth - 260, Math.max(10, clientX - 125)) + 'px';
+                tt.style.top = (clientY - 100) + 'px';
+                e.stopPropagation();
+            };
 
+            const hideTip = () => { document.getElementById('tooltip').style.display = 'none'; };
+
+            wrap.addEventListener('mouseenter', showTip);
+            wrap.addEventListener('mouseleave', hideTip);
+            wrap.addEventListener('touchstart', showTip);
+            
             layer.appendChild(wrap);
+            setTimeout(() => wrap.style.transform = `translate(-50%, -50%) scale(1) rotate(${Math.random()*360}deg)`, 100);
         }
 
-        msgInput.addEventListener('input', (e) => {
+        function generateLeaves() {
+            const leafLayer = document.getElementById('leaf-layer');
+            const branches = document.querySelectorAll('#tree-branches path');
+            branches.forEach(branch => {
+                const len = branch.getTotalLength();
+                for (let i = 0; i < len/12; i++) {
+                    const p = branch.getPointAtLength(Math.random() * len);
+                    const leaf = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+                    leaf.setAttribute("cx", p.x + (Math.random()-0.5)*40);
+                    leaf.setAttribute("cy", p.y + (Math.random()-0.5)*40);
+                    leaf.setAttribute("rx", 10); leaf.setAttribute("ry", 6);
+                    leaf.setAttribute("fill", "#1a2e05");
+                    leaf.setAttribute("transform", `rotate(${Math.random()*360} ${leaf.getAttribute("cx")} ${leaf.getAttribute("cy")})`);
+                    leafLayer.appendChild(leaf);
+                }
+            });
+        }
+
+        document.getElementById('msg-input').addEventListener('input', (e) => {
             document.getElementById('char-indicator').innerText = `${e.target.value.length} / 150`;
         });
 
-        window.onload = () => {
-            initAuth();
-            createStars();
+        window.onclick = (e) => {
+            if (e.target.id === 'tooltip') document.getElementById('tooltip').style.display = 'none';
+        };
+
+        window.onload = () => { 
+            initAuth(); 
+            createStars(); 
         };
     </script>
 </body>
