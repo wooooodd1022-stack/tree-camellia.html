@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>4월엔 동백꽃을 달아주세요 - 제주 4.3 추모</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nanum Brush Script', cursive;
+            background: radial-gradient(circle at bottom, #161625 0%, #050505 100%);
+            color: #f1f5f9;
+            overflow: hidden;
+            margin: 0;
+            height: 100dvh;
+            touch-action: manipulation;
+        }
+
+        #intro-screen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            background: #0a0a0a;
+            transition: opacity 1.5s ease;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .intro-camellia {
+            width: clamp(140px, 45vw, 200px);
+            height: clamp(140px, 45vw, 200px);
+            cursor: pointer;
+            filter: drop-shadow(0 0 40px rgba(225, 29, 72, 0.6));
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .intro-camellia:active { transform: scale(0.9); }
+
+        .intro-instruction {
+            margin-top: 2.5rem;
+            font-size: clamp(1.6rem, 5vw, 2.4rem);
+            color: #fda4af;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } }
+
+        #tree-glow {
+            position: absolute;
+            bottom: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(1000px, 160vw);
+            height: min(1000px, 160vw);
+            background: radial-gradient(circle, rgba(225, 29, 72, 0.12) 0%, transparent 75%);
+            filter: blur(60px);
+            z-index: 1;
+            opacity: 0;
+            transition: opacity 3s ease;
+            pointer-events: none;
+        }
+
+        #memorial-tree-container {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 850px;
+            height: 82vh;
+            z-index: 2;
+            opacity: 0;
+            transition: opacity 2s ease;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        #tree-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .flower-node { 
+            position: absolute; 
+            z-index: 100;
+            pointer-events: auto;
+            cursor: pointer;
+            transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .camellia-flower-svg {
+            width: clamp(40px, 8vw, 55px);
+            height: clamp(40px, 8vw, 55px);
+            filter: drop-shadow(0 3px 6px rgba(0,0,0,0.5));
+        }
+
+        .petal {
+            position: absolute; width: 18px; height: 22px; background: #be123c;
+            border-radius: 80% 20% 80% 40%; z-index: 150;
+            pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .flying { animation: flyEffect 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
+        @keyframes flyEffect {
+            0% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+            100% { transform: translate(var(--end-x), var(--end-y)) rotate(720deg) scale(0); opacity: 0; }
+        }
+
+        #memorial-modal {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(12, 8, 12, 0.98); padding: 2rem 1.5rem; border-radius: 40px;
+            border: 1px solid rgba(225, 29, 72, 0.35); z-index: 300; width: 92%; max-width: 480px;
+            box-shadow: 0 0 120px rgba(0, 0, 0, 1); text-align: center;
+        }
+
+        #msg-input {
+            width: 100%; height: 220px; background: #2a0812; color: #fff; 
+            padding: 20px; border: none; border-radius: 25px; resize: none;
+            font-family: 'Nanum Brush Script', cursive; text-align: center;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.7); outline: none; font-size: 1.7rem;
+            line-height: 1.4;
+        }
+
+        .char-count {
+            color: #f43f5e; font-size: 1.4rem; margin-top: 0.6rem; text-align: right; width: 100%;
+            opacity: 0.8;
+        }
+
+        .btn-send {
+            background: #e11d48; color: white; padding: 10px 45px; border-radius: 35px;
+            font-size: 2rem; transition: 0.3s; border: none; cursor: pointer;
+            margin-top: 1rem;
+        }
+        .btn-send:active { transform: scale(0.95); }
+
+        .tooltip {
+            position: fixed; background: #fff; color: #0f172a; padding: 16px 24px;
+            border-radius: 22px; font-size: 1.8rem; display: none; z-index: 1000;
+            box-shadow: 0 15px 45px rgba(0,0,0,0.6); pointer-events: none;
+            max-width: 280px; word-break: keep-all; line-height: 1.3; text-align: center;
+        }
+
+        .star { position: absolute; background: white; border-radius: 50%; opacity: 0.25; animation: twinkle var(--t) infinite ease-in-out; }
+        @keyframes twinkle { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.5; } }
+
+        .fade-out { opacity: 0; visibility: hidden; }
+        .hidden-ui { opacity: 0; pointer-events: none; transition: opacity 1.8s ease; }
+        .visible-ui { opacity: 1; pointer-events: auto; }
+
+        h1 { font-size: clamp(2.8rem, 9vw, 5rem); text-shadow: 0 0 25px rgba(225, 29, 72, 0.6); }
+    </style>
+</head>
+<body>
+
+    <div id="stars"></div>
+    <div id="tree-glow"></div>
+
+    <div id="intro-screen">
+        <h2 class="text-4xl text-rose-100 mb-14">4월엔 동백꽃을 달아주세요</h2>
+        <div class="intro-camellia" onclick="startMemorial()">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="32" r="23" fill="#e11d48" />
+                <circle cx="50" cy="68" r="23" fill="#e11d48" />
+                <circle cx="32" cy="50" r="23" fill="#e11d48" />
+                <circle cx="68" cy="50" r="23" fill="#e11d48" />
+                <circle cx="50" cy="50" r="14" fill="#fbbf24" />
+            </svg>
+        </div>
+        <p class="intro-instruction">동백꽃을 눌러 평화의 나무를 만나보세요</p>
+    </div>
+
+    <div id="main-ui" class="hidden-ui absolute top-10 left-0 w-full text-center z-50 px-5">
+        <h1 class="text-rose-500">4월엔 동백꽃을 달아주세요</h1>
+        <p class="text-2xl text-slate-300 mt-2">우리 모두의 마음이 모여 피어납니다.</p>
+    </div>
+
+    <div id="memorial-tree-container">
+        <svg id="tree-svg" viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax meet">
+            <g fill="#080808">
+                <path d="M240,800 Q300,760 360,800" fill="none" stroke="#080808" stroke-width="15" />
+                <path d="M255,800 L345,800 Q325,580 310,480 L290,480 Q275,580 255,800 Z" />
+            </g>
+            <g id="tree-branches" stroke="#080808" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path id="branch-1" d="M300,480 Q180,450 60,490" stroke-width="20" />
+                <path id="branch-2" d="M300,480 Q420,420 540,460" stroke-width="20" />
+                <path id="branch-3" d="M300,380 Q150,340 100,280" stroke-width="15" />
+                <path id="branch-4" d="M300,380 Q450,300 500,270" stroke-width="15" />
+                <path id="branch-5" d="M300,480 Q290,250 300,40" stroke-width="18" />
+                <path id="branch-6" d="M295,220 Q150,160 180,60" stroke-width="10" />
+                <path id="branch-7" d="M305,220 Q450,160 420,60" stroke-width="10" />
+                <path d="M60,490 Q30,420 40,380" stroke-width="6" />
+                <path d="M540,460 Q570,380 550,320" stroke-width="6" />
+                <path d="M100,280 Q70,220 80,160" stroke-width="5" />
+                <path d="M500,270 Q530,200 520,150" stroke-width="5" />
+            </g>
+            <g id="leaf-layer" opacity="0.95"></g>
+        </svg>
+        <div id="flower-layer" class="absolute inset-0 pointer-events-none"></div>
+    </div>
+
+    <div id="write-trigger" class="hidden-ui fixed bottom-10 right-10 w-24 h-24 cursor-pointer z-50" onclick="openMemorial()">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="48" fill="rgba(225, 29, 72, 0.25)" stroke="#e11d48" stroke-width="2.5" />
+            <g filter="drop-shadow(0 2px 4px rgba(0,0,0,0.5))">
+                <circle cx="50" cy="30" r="22" fill="#e11d48" />
+                <circle cx="50" cy="70" r="22" fill="#e11d48" />
+                <circle cx="30" cy="50" r="22" fill="#e11d48" />
+                <circle cx="70" cy="50" r="22" fill="#e11d48" />
+                <circle cx="50" cy="50" r="12" fill="#fbbf24" />
+            </g>
+        </svg>
+    </div>
+
+    <div id="memorial-modal">
+        <h2 class="text-4xl text-rose-200 mb-6">마음 한 송이 피우기</h2>
+        <div class="flex flex-col items-center">
+            <textarea id="msg-input" maxlength="150" placeholder="기억의 문장을 적어주세요... (최대 150자)"></textarea>
+            <div id="char-indicator" class="char-count">0 / 150</div>
+            <div class="flex justify-center gap-10 mt-6">
+                <button onclick="closeMemorial()" class="text-2xl text-slate-500 hover:text-white transition-colors">닫기</button>
+                <button onclick="plantFlower()" class="btn-send shadow-lg shadow-rose-900/40">꽃 피우기</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDTrSN6wwJEAjiL3HwMh9woNmJ5NwSg1cQ",
+            authDomain: "tree-7ef79.firebaseapp.com",
+            projectId: "tree-7ef79",
+            storageBucket: "tree-7ef79.firebasestorage.app",
+            messagingSenderId: "495473926266",
+            appId: "1:495473926266:web:bce30dde7026b2eff25bc3"
+        };
+
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore(app);
+        const auth = firebase.auth(app);
+        const appId = 'camellia-memorial-final';
+
+        async function initAuth() {
+            try {
+                await auth.signInAnonymously();
+            } catch (e) {
+                console.error("Auth error:", e);
+            }
+        }
+
+        document.getElementById('msg-input').addEventListener('input', (e) => {
+            document.getElementById('char-indicator').innerText = `${e.target.value.length} / 150`;
+        });
+
+        function generateLeaves() {
+            const leafLayer = document.getElementById('leaf-layer');
+            const branches = document.querySelectorAll('#tree-branches path');
+            const leafColors = ['#1a2e05', '#365314', '#3f6212', '#4d7c0f'];
+
+            branches.forEach(branch => {
+                const length = branch.getTotalLength();
+                const leafCount = Math.floor(length / 15);
+
+                for (let i = 0; i < leafCount; i++) {
+                    const point = branch.getPointAtLength(Math.random() * length);
+                    const offsetX = (Math.random() - 0.5) * 35;
+                    const offsetY = (Math.random() - 0.5) * 35;
+                    
+                    const leaf = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+                    const rx = 8 + Math.random() * 12;
+                    const ry = 5 + Math.random() * 8;
+                    
+                    leaf.setAttribute("cx", point.x + offsetX);
+                    leaf.setAttribute("cy", point.y + offsetY);
+                    leaf.setAttribute("rx", rx);
+                    leaf.setAttribute("ry", ry);
+                    leaf.setAttribute("fill", leafColors[Math.floor(Math.random() * leafColors.length)]);
+                    
+                    const rotate = Math.random() * 360;
+                    leaf.setAttribute("transform", `rotate(${rotate} ${point.x + offsetX} ${point.y + offsetY})`);
+                    leafLayer.appendChild(leaf);
+                }
+            });
+        }
+
+        const starsContainer = document.getElementById('stars');
+        for (let i = 0; i < 80; i++) {
+            const s = document.createElement('div');
+            s.className = 'star';
+            const size = Math.random() * 2 + 0.5;
+            s.style.width = size + 'px'; s.style.height = size + 'px';
+            s.style.top = Math.random() * 100 + '%'; s.style.left = Math.random() * 100 + '%';
+            s.style.setProperty('--t', (Math.random() * 5 + 3) + 's');
+            starsContainer.appendChild(s);
+        }
+
+        function startMemorial() {
+            document.getElementById('intro-screen').classList.add('fade-out');
+            setTimeout(() => {
+                document.getElementById('tree-glow').style.opacity = '1';
+                document.getElementById('memorial-tree-container').style.opacity = '1';
+                document.getElementById('main-ui').classList.add('visible-ui');
+                document.getElementById('write-trigger').classList.add('visible-ui');
+                generateLeaves();
+                loadFlowers();
+            }, 800);
+        }
+
+        function openMemorial() {
+            document.getElementById('memorial-modal').style.display = 'block';
+            document.getElementById('msg-input').focus();
+        }
+
+        function closeMemorial() {
+            document.getElementById('memorial-modal').style.display = 'none';
+            document.getElementById('msg-input').value = '';
+            document.getElementById('char-indicator').innerText = '0 / 150';
+        }
+
+        async function plantFlower() {
+            const msg = document.getElementById('msg-input').value.trim();
+            if (!msg) return;
+
+            const branches = document.querySelectorAll('#tree-branches path');
+            const randomBranch = branches[Math.floor(Math.random() * branches.length)];
+            const length = randomBranch.getTotalLength();
+            const point = randomBranch.getPointAtLength(Math.random() * length);
+
+            const targetXPercent = (point.x / 600) * 100 + (Math.random() - 0.5) * 8;
+            const targetYPercent = (point.y / 800) * 100 + (Math.random() - 0.5) * 8;
+
+            try {
+                if (!auth.currentUser) await initAuth();
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
+                    message: msg,
+                    x: targetXPercent,
+                    y: targetYPercent,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                const tRect = document.getElementById('memorial-tree-container').getBoundingClientRect();
+                const tx = (targetXPercent / 100) * tRect.width;
+                const ty = (targetYPercent / 100) * tRect.height;
+                animatePetal(tx, ty);
+                closeMemorial();
+            } catch (e) { console.error("DB Error: ", e); }
+        }
+
+        function animatePetal(tx, ty) {
+            const petal = document.createElement('div');
+            petal.className = 'petal flying';
+            const trigger = document.getElementById('write-trigger').getBoundingClientRect();
+            petal.style.left = (trigger.left + trigger.width/2) + 'px';
+            petal.style.top = (trigger.top + trigger.height/2) + 'px';
+
+            const tree = document.getElementById('memorial-tree-container').getBoundingClientRect();
+            petal.style.setProperty('--end-x', (tree.left + tx - trigger.left - 20) + 'px');
+            petal.style.setProperty('--end-y', (tree.top + ty - trigger.top - 20) + 'px');
+
+            document.body.appendChild(petal);
+            setTimeout(() => petal.remove(), 2500);
+        }
+
+        function loadFlowers() {
+            db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers')
+                .onSnapshot((snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "added") {
+                            const data = change.doc.data();
+                            createFlowerOnTree(data.x, data.y, data.message);
+                        }
+                    });
+                }, (err) => console.error("Snapshot error: ", err));
+        }
+
+        function createFlowerOnTree(px, py, message) {
+            const flowerLayer = document.getElementById('flower-layer');
+            const flowerWrap = document.createElement('div');
+            flowerWrap.className = 'flower-node';
+            flowerWrap.style.left = px + '%';
+            flowerWrap.style.top = py + '%';
+            flowerWrap.style.transform = 'scale(0)';
+
+            const svgNS = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(svgNS, "svg");
+            svg.setAttribute("viewBox", "0 0 100 100");
+            svg.setAttribute("class", "camellia-flower-svg");
+
+            for (let i = 0; i < 6; i++) {
+                const petal = document.createElementNS(svgNS, "circle");
+                const angle = (i * 60) * (Math.PI / 180);
+                const r = 24;
+                const cx = 50 + Math.cos(angle) * 22;
+                const cy = 50 + Math.sin(angle) * 22;
+                petal.setAttribute("cx", cx);
+                petal.setAttribute("cy", cy);
+                petal.setAttribute("r", r);
+                petal.setAttribute("fill", "#e11d48");
+                svg.appendChild(petal);
+            }
+
+            const center = document.createElementNS(svgNS, "circle");
+            center.setAttribute("cx", "50");
+            center.setAttribute("cy", "50");
+            center.setAttribute("r", "15");
+            center.setAttribute("fill", "#fbbf24");
+            svg.appendChild(center);
+
+            flowerWrap.appendChild(svg);
+            flowerLayer.appendChild(flowerWrap);
+
+            setTimeout(() => {
+                flowerWrap.style.transform = `translate(-50%, -50%) scale(1) rotate(${Math.random() * 360}deg)`;
+            }, 100);
+
+            const showTip = (e) => {
+                const tt = document.getElementById('tooltip');
+                tt.innerText = message;
+                tt.style.display = 'block';
+                const x = (e.touches ? e.touches[0].clientX : e.clientX);
+                const y = (e.touches ? e.touches[0].clientY : e.clientY);
+                
+                let leftPos = x - 60;
+                if (leftPos + 280 > window.innerWidth) leftPos = window.innerWidth - 300;
+                if (leftPos < 10) leftPos = 10;
+
+                tt.style.left = leftPos + 'px';
+                tt.style.top = (y - 100) + 'px';
+                e.stopPropagation();
+            };
+            const hideTip = () => document.getElementById('tooltip').style.display = 'none';
+
+            flowerWrap.addEventListener('mouseenter', showTip);
+            flowerWrap.addEventListener('mouseleave', hideTip);
+            flowerWrap.style.pointerEvents = 'auto';
+            
+            flowerWrap.addEventListener('touchstart', (e) => {
+                if (document.getElementById('memorial-modal').style.display === 'block') return;
+                showTip(e);
+                setTimeout(hideTip, 5000); 
+            });
+        }
+
+        window.onload = initAuth;
+    </script>
+</body>
+</html>
