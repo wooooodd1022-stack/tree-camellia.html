@@ -10,10 +10,8 @@
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&display=swap" rel="stylesheet">
     <style>
-        /* 감성적 제목에만 브러쉬 폰트 적용 */
         .brush-font { font-family: 'Nanum Brush Script', cursive; }
         
-        /* 모달 및 입력창은 시각적 안정을 위해 시스템 기본 폰트로 고정 */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: radial-gradient(circle at bottom, #161625 0%, #050505 100%);
@@ -78,7 +76,6 @@
             filter: drop-shadow(0 3px 6px rgba(0,0,0,0.5));
         }
 
-        /* 모달 내부 스타일 - 기본 폰트로 완전히 고정 */
         #memorial-modal {
             display: none; 
             position: fixed; 
@@ -105,7 +102,6 @@
             border: 1px solid #333; 
             border-radius: 15px; 
             resize: none;
-            /* 폰트 상속을 강제하고 굴림이나 붓글씨가 튀지 않도록 함 */
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
             font-size: 1.1rem;
             line-height: 1.6;
@@ -145,7 +141,6 @@
 
     <div id="stars"></div>
 
-    <!-- 인트로 -->
     <div id="intro-screen">
         <h2 class="brush-font text-5xl text-rose-100 mb-14">4월엔 동백꽃을 달아주세요</h2>
         <div class="intro-camellia" onclick="startMemorial()">
@@ -160,13 +155,11 @@
         <p class="brush-font text-3xl text-rose-300 mt-10 animate-pulse">동백꽃을 눌러 평화의 나무를 만나보세요</p>
     </div>
 
-    <!-- 헤더 -->
     <div id="main-ui" class="hidden-ui absolute top-10 left-0 w-full text-center z-50 px-5">
         <h1 class="brush-font text-rose-500 text-6xl" style="text-shadow: 0 0 20px rgba(225,29,72,0.4);">4월엔 동백꽃을 달아주세요</h1>
         <p class="text-xl text-slate-400 mt-2">제주 4.3 희생자들을 함께 기억합니다.</p>
     </div>
 
-    <!-- 나무 -->
     <div id="memorial-tree-container">
         <svg id="tree-svg" viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg">
             <g fill="#0a0a0a">
@@ -184,7 +177,6 @@
         <div id="flower-layer" class="absolute inset-0 pointer-events-none"></div>
     </div>
 
-    <!-- 작성 버튼 -->
     <div id="write-trigger" class="hidden-ui fixed bottom-10 right-10 w-20 h-20 cursor-pointer z-50" onclick="openMemorial()">
         <svg viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="48" fill="rgba(225, 29, 72, 0.3)" stroke="#e11d48" stroke-width="2" />
@@ -196,7 +188,6 @@
         </svg>
     </div>
 
-    <!-- 모달 -->
     <div id="memorial-modal">
         <h2 class="text-2xl font-bold text-rose-100 mb-5">마음 한 송이 피우기</h2>
         <textarea id="msg-input" maxlength="150" placeholder="기억의 문장을 적어주세요..."></textarea>
@@ -210,7 +201,7 @@
     <div id="tooltip" class="tooltip"></div>
 
     <script>
-        // Firebase 설정: 환경 변수가 있는 경우 우선 사용, 없으면 하드코딩된 값 사용
+        // Firestore 규칙 준수를 위한 설정
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyDTrSN6wwJEAjiL3HwMh9woNmJ5NwSg1cQ",
             authDomain: "tree-7ef79.firebaseapp.com",
@@ -224,29 +215,59 @@
         const db = firebase.firestore(app);
         const auth = firebase.auth(app);
         
-        // 데이터 경로를 camellia-memorial-shared로 고정하여 기기 간 공유 보장
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'camellia-memorial-shared-v1';
-
-        // 이미 렌더링된 꽃의 ID를 추적하여 중복 렌더링 방지
+        // 데이터 영속성을 위한 핵심 ID 설정
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'camellia-memorial-tree-final';
         const renderedFlowers = new Set();
+        let currentUser = null;
 
         /**
-         * Firebase 익명 인증 및 실시간 데이터 연결
+         * Firebase 인증 및 실시간 리스너 초기화
          */
-        async function initAuthAndData() {
+        async function initApp() {
             try {
-                if (!auth.currentUser) {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await auth.signInWithCustomToken(__initial_auth_token);
+                // 인증 확인 및 익명 로그인
+                auth.onAuthStateChanged(user => {
+                    if (user) {
+                        currentUser = user;
+                        // 사용자가 확인되면 꽃 불러오기 시작
+                        startListening();
                     } else {
-                        await auth.signInAnonymously();
+                        signIn();
                     }
-                }
-                // 인증 성공 후 즉시 데이터 로드 및 실시간 감시 시작
-                loadFlowers();
+                });
             } catch (e) {
-                console.error("Firebase Auth/Init Error:", e);
+                console.error("Init Error:", e);
             }
+        }
+
+        async function signIn() {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await auth.signInWithCustomToken(__initial_auth_token);
+            } else {
+                await auth.signInAnonymously();
+            }
+        }
+
+        function startListening() {
+            if (!currentUser) return;
+
+            // Rule 1 준수: /artifacts/{appId}/public/data/{collectionName}
+            const flowerCol = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers');
+
+            flowerCol.onSnapshot(snap => {
+                snap.docChanges().forEach(change => {
+                    if (change.type === "added") {
+                        const docId = change.doc.id;
+                        if (!renderedFlowers.has(docId)) {
+                            const d = change.doc.data();
+                            renderFlower(d.x, d.y, d.message, docId);
+                            renderedFlowers.add(docId);
+                        }
+                    }
+                });
+            }, err => {
+                console.error("Snapshot Error:", err);
+            });
         }
 
         function createStars() {
@@ -273,24 +294,22 @@
         }
 
         function openMemorial() {
-            const modal = document.getElementById('memorial-modal');
-            modal.style.setProperty('display', 'block', 'important');
+            document.getElementById('memorial-modal').style.display = 'block';
             document.getElementById('msg-input').focus();
         }
 
         function closeMemorial() {
-            const modal = document.getElementById('memorial-modal');
-            modal.style.setProperty('display', 'none', 'important');
-            
-            const input = document.getElementById('msg-input');
-            const btn = document.getElementById('send-btn');
-            input.value = '';
+            document.getElementById('memorial-modal').style.display = 'none';
+            document.getElementById('msg-input').value = '';
             document.getElementById('char-indicator').innerText = '0 / 150';
+            const btn = document.getElementById('send-btn');
             btn.disabled = false;
             btn.innerText = "꽃 피우기";
         }
 
         async function plantFlower() {
+            if (!currentUser) return;
+
             const msgInput = document.getElementById('msg-input');
             const btn = document.getElementById('send-btn');
             const msg = msgInput.value.trim();
@@ -299,56 +318,32 @@
 
             btn.disabled = true;
             btn.innerText = "피우는 중...";
-            
-            // UI 즉시 응답을 위해 모달 닫기
-            closeMemorial();
 
             try {
-                // 나무 가지 범위 내에서 랜덤 위치 생성
-                const x = Math.random() * 70 + 15; // 15% ~ 85%
-                const y = Math.random() * 45 + 5;  // 5% ~ 50%
+                const x = Math.random() * 70 + 15; 
+                const y = Math.random() * 45 + 5;
 
-                // Firestore에 추가 (onSnapshot 리스너가 모든 기기에서 즉시 감지함)
+                // Firestore 저장 경로 (Rule 1)
                 await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
                     message: msg, 
                     x: x, 
                     y: y, 
+                    author: currentUser.uid,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 
+                closeMemorial();
             } catch (e) {
-                console.error("꽃 피우기 전송 실패:", e);
+                console.error("저장 실패:", e);
+                btn.disabled = false;
+                btn.innerText = "다시 시도";
             }
-        }
-
-        /**
-         * 실시간 리스너: 서버에 데이터가 저장되는 즉시 모든 기기에서 실행됨
-         */
-        function loadFlowers() {
-            // 정렬 없이 모든 데이터를 실시간으로 감시
-            db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers')
-                .onSnapshot(snap => {
-                    snap.docChanges().forEach(change => {
-                        if (change.type === "added") {
-                            const docId = change.doc.id;
-                            // 이미 그린 꽃인지 확인 (중복 방지 및 메모리 효율성)
-                            if (!renderedFlowers.has(docId)) {
-                                const d = change.doc.data();
-                                renderFlower(d.x, d.y, d.message, docId);
-                                renderedFlowers.add(docId);
-                            }
-                        }
-                    });
-                }, err => {
-                    console.error("데이터 실시간 로드 에러 (Snapshot Error):", err);
-                });
         }
 
         function renderFlower(x, y, msg, id) {
             const layer = document.getElementById('flower-layer');
             const wrap = document.createElement('div');
             wrap.className = 'flower-node';
-            wrap.setAttribute('data-id', id);
             wrap.style.left = x + '%'; 
             wrap.style.top = y + '%';
             wrap.style.transform = `translate(-50%, -50%) scale(0)`;
@@ -416,13 +411,8 @@
             document.getElementById('char-indicator').innerText = `${e.target.value.length} / 150`;
         });
 
-        window.onclick = (e) => {
-            if (e.target.id === 'tooltip') document.getElementById('tooltip').style.display = 'none';
-        };
-
         window.onload = () => { 
-            // 인증 및 실시간 리스너 동시 실행
-            initAuthAndData(); 
+            initApp();
             createStars(); 
         };
     </script>
