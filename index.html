@@ -225,6 +225,9 @@
         const auth = firebase.auth(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'camellia-memorial-final-v3';
 
+        // 이미 렌더링된 꽃의 ID를 추적하여 중복 렌더링 방지
+        const renderedFlowers = new Set();
+
         async function initAuth() {
             try {
                 if (!auth.currentUser) {
@@ -235,7 +238,7 @@
                     }
                 }
             } catch (e) {
-                console.error("Auth Error:", e);
+                console.error("인증 오류:", e);
             }
         }
 
@@ -259,6 +262,7 @@
                 document.getElementById('main-ui').classList.add('visible-ui');
                 document.getElementById('write-trigger').classList.add('visible-ui');
                 generateLeaves();
+                // 나무가 나타난 후 꽃 로드 시작
                 loadFlowers();
             }, 800);
         }
@@ -273,7 +277,6 @@
             const modal = document.getElementById('memorial-modal');
             modal.style.setProperty('display', 'none', 'important');
             
-            // 입력창 및 버튼 초기화
             const input = document.getElementById('msg-input');
             const btn = document.getElementById('send-btn');
             input.value = '';
@@ -289,21 +292,20 @@
             
             if (!msg) return;
 
-            // 1. UI 즉시 반응 (모달 닫기 및 버튼 비활성화를 최우선 실행)
             btn.disabled = true;
             btn.innerText = "피우는 중...";
             
-            // 네트워크 응답을 기다리지 않고 모달을 먼저 닫습니다.
+            // 즉시 닫기
             closeMemorial();
 
             try {
-                // 2. 백그라운드에서 전송 로직 수행
                 await initAuth();
                 
-                const x = Math.random() * 60 + 20;
-                const y = Math.random() * 50 + 10;
+                // 나무 가지 범위 내에서 랜덤 위치 생성
+                const x = Math.random() * 70 + 15; // 15% ~ 85%
+                const y = Math.random() * 45 + 5;  // 5% ~ 50%
 
-                // .then()을 사용하여 비동기 전송 수행 (await으로 흐름을 막지 않음)
+                // Firestore에 추가 (onSnapshot 리스너가 모든 클라이언트에서 감지함)
                 db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
                     message: msg, 
                     x: x, 
@@ -314,28 +316,37 @@
                 });
                 
             } catch (e) {
-                console.error("인증 또는 전송 중 오류:", e);
-                // 이미 모달이 닫혔으므로 콘솔로그로만 기록
+                console.error("전송 중 오류:", e);
             }
         }
 
+        /**
+         * 실시간 리스너: 새로운 데이터가 추가될 때마다 모든 클라이언트에서 실행됨
+         */
         function loadFlowers() {
             db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers')
                 .onSnapshot(snap => {
                     snap.docChanges().forEach(change => {
                         if (change.type === "added") {
-                            const d = change.doc.data();
-                            renderFlower(d.x, d.y, d.message);
+                            const docId = change.doc.id;
+                            // 이미 그린 꽃인지 확인 (중복 방지)
+                            if (!renderedFlowers.has(docId)) {
+                                const d = change.doc.data();
+                                renderFlower(d.x, d.y, d.message, docId);
+                                renderedFlowers.add(docId);
+                            }
                         }
                     });
                 }, err => console.error("Snapshot error:", err));
         }
 
-        function renderFlower(x, y, msg) {
+        function renderFlower(x, y, msg, id) {
             const layer = document.getElementById('flower-layer');
             const wrap = document.createElement('div');
             wrap.className = 'flower-node';
-            wrap.style.left = x + '%'; wrap.style.top = y + '%';
+            wrap.setAttribute('data-id', id);
+            wrap.style.left = x + '%'; 
+            wrap.style.top = y + '%';
             wrap.style.transform = `translate(-50%, -50%) scale(0)`;
 
             wrap.innerHTML = `
@@ -363,10 +374,22 @@
 
             wrap.addEventListener('mouseenter', showTip);
             wrap.addEventListener('mouseleave', hideTip);
-            wrap.addEventListener('touchstart', showTip);
+            wrap.addEventListener('touchstart', (e) => {
+                showTip(e);
+                // 모바일 터치 시 다른 곳 누르면 팁 사라지게
+                setTimeout(() => {
+                    document.addEventListener('touchstart', function once() {
+                        hideTip();
+                        document.removeEventListener('touchstart', once);
+                    });
+                }, 100);
+            });
             
             layer.appendChild(wrap);
-            setTimeout(() => wrap.style.transform = `translate(-50%, -50%) scale(1) rotate(${Math.random()*360}deg)`, 100);
+            // 애니메이션과 함께 등장
+            setTimeout(() => {
+                wrap.style.transform = `translate(-50%, -50%) scale(1) rotate(${Math.random()*360}deg)`;
+            }, 50);
         }
 
         function generateLeaves() {
