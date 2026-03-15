@@ -163,16 +163,17 @@
     <script>
         let db, auth;
         const renderedIds = new Set();
-        const appId = 'jeju-43-memorial-prod';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'jeju-43-memorial-prod';
 
         function initFirebase() {
             console.log("Initializing application...");
             try {
+                // Firebase 초기화 로직 수정
                 if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                     const config = JSON.parse(__firebase_config);
                     firebase.initializeApp(config);
-                    console.log("Firebase initialized via environment.");
                 } else {
+                    // 기본 설정 (환경 변수가 없을 때)
                     const firebaseConfig = {
                         apiKey: "AIzaSyDTrSN6wwJEAjiL3HwMh9woNmJ5NwSg1cQ",
                         authDomain: "tree-7ef79.firebaseapp.com",
@@ -182,14 +183,15 @@
                         appId: "1:495473926266:web:bce30dde7026b2eff25bc3"
                     };
                     firebase.initializeApp(firebaseConfig);
-                    console.log("Firebase initialized via manual config.");
                 }
 
                 auth = firebase.auth();
                 db = firebase.firestore();
                 startAuth();
             } catch (e) {
-                console.error("Firebase system failed to load:", e);
+                console.warn("Firebase initialization skipped or failed. Falling back to local mode.", e);
+                // DB가 없어도 인터랙션은 가능하도록 설정
+                db = null;
             }
         }
 
@@ -209,6 +211,7 @@
 
         function loadFlowers() {
             if (!db) return;
+            // 컬렉션 경로를 더 명확하게 지정
             db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers')
                 .onSnapshot((snapshot) => {
                     snapshot.docChanges().forEach(change => {
@@ -220,11 +223,16 @@
                             }
                         }
                     });
-                }, err => console.error("Firestore error:", err));
+                }, err => {
+                    console.error("Firestore loading error:", err);
+                    showToast("데이터를 불러오지 못했습니다.");
+                });
         }
 
         function renderFlower(x, y, msg) {
             const layer = document.getElementById('flower-layer');
+            if (!layer) return;
+
             const wrap = document.createElement('div');
             wrap.className = 'flower-node';
             wrap.style.left = x + '%'; 
@@ -241,19 +249,27 @@
                 const tt = document.getElementById('tooltip');
                 tt.innerText = msg;
                 tt.style.display = 'block';
-                const clientX = e.clientX || (e.touches && e.touches[0].clientX) || e.pageX;
-                const clientY = e.clientY || (e.touches && e.touches[0].clientY) || e.pageY;
+                const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+                
                 let tx = clientX - 130;
                 let ty = clientY - 80;
                 if (tx < 10) tx = 10;
                 if (tx + 260 > window.innerWidth) tx = window.innerWidth - 270;
-                tt.style.left = tx + 'px'; tt.style.top = ty + 'px';
+                
+                tt.style.left = tx + 'px'; 
+                tt.style.top = ty + 'px';
                 setTimeout(() => { if(tt) tt.style.display = 'none'; }, 4000);
             };
 
-            wrap.addEventListener('pointerdown', handleInteraction);
+            wrap.addEventListener('click', handleInteraction);
+            wrap.addEventListener('touchstart', handleInteraction, {passive: true});
+            
             layer.appendChild(wrap);
-            setTimeout(() => wrap.style.transform = `translate(-50%, -50%) scale(1) rotate(${Math.random()*360}deg)`, 50);
+            // 애니메이션 적용을 위해 약간의 지연 후 scale 변경
+            requestAnimationFrame(() => {
+                wrap.style.transform = `translate(-50%, -50%) scale(1) rotate(${Math.random()*360}deg)`;
+            });
         }
 
         const startBtn = document.getElementById('start-memorial-btn');
@@ -276,16 +292,17 @@
             const leafColors = ['#064e3b', '#065f46', '#047857'];
             branches.forEach(branch => {
                 const length = branch.getTotalLength();
-                for (let i = 0; i < length; i += 30) {
+                for (let i = 0; i < length; i += 35) {
                     const point = branch.getPointAtLength(i);
                     const leaf = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
                     const ox = (Math.random() - 0.5) * 40;
                     const oy = (Math.random() - 0.5) * 40;
                     leaf.setAttribute("cx", point.x + ox);
                     leaf.setAttribute("cy", point.y + oy);
-                    leaf.setAttribute("rx", 8); leaf.setAttribute("ry", 5);
+                    leaf.setAttribute("rx", 7 + Math.random() * 3); 
+                    leaf.setAttribute("ry", 4 + Math.random() * 2);
                     leaf.setAttribute("fill", leafColors[Math.floor(Math.random()*3)]);
-                    leaf.setAttribute("opacity", "0.7");
+                    leaf.setAttribute("opacity", "0.8");
                     leaf.setAttribute("transform", `rotate(${Math.random()*360} ${point.x+ox} ${point.y+oy})`);
                     leafLayer.appendChild(leaf);
                 }
@@ -297,10 +314,14 @@
             const msg = input.value.trim();
             if (!msg) return;
 
+            const xPos = 20 + Math.random() * 60;
+            const yPos = 10 + Math.random() * 50;
+
             if (!db) {
-                renderFlower(25 + Math.random()*50, 10 + Math.random()*50, msg);
+                // DB 연결 실패 시에도 로컬에 즉시 표시
+                renderFlower(xPos, yPos, msg);
                 closeModal();
-                showToast("오프라인 모드로 꽃이 피어났습니다.");
+                showToast("기억이 나무에 피어났습니다.");
                 return;
             }
 
@@ -308,15 +329,20 @@
             btn.disabled = true; btn.innerText = "피우는 중...";
             try {
                 await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
-                    message: msg, x: 25 + Math.random()*50, y: 10 + Math.random()*55,
-                    uid: auth.currentUser?.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    message: msg, 
+                    x: xPos, 
+                    y: yPos,
+                    uid: auth.currentUser ? auth.currentUser.uid : 'anon',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 closeModal();
                 showToast("동백꽃이 피어났습니다.");
             } catch (e) {
-                console.error(e);
-                showToast("저장에 실패했습니다.");
-                btn.disabled = false; btn.innerText = "꽃 피우기";
+                console.error("Save Error:", e);
+                // 에러 발생 시에도 사용자 경험을 위해 로컬에 렌더링 시도
+                renderFlower(xPos, yPos, msg);
+                closeModal();
+                showToast("저장에 실패했지만, 꽃은 피어났습니다.");
             }
         }
 
@@ -332,20 +358,23 @@
         document.getElementById('close-modal-btn').onclick = closeModal;
         document.getElementById('send-btn').onclick = plantFlower;
 
-        for(let i=0; i<60; i++) {
+        // 별 배경 생성
+        const starsBox = document.getElementById('stars');
+        for(let i=0; i<70; i++) {
             const s = document.createElement('div');
             s.className = 'star';
             s.style.left = Math.random()*100+'%'; s.style.top = Math.random()*100+'%';
-            s.style.width = s.style.height = (Math.random()*2 + 1)+'px';
+            const size = (Math.random()*2 + 1);
+            s.style.width = size+'px'; s.style.height = size+'px';
             s.style.setProperty('--t', (Math.random()*4 + 2)+'s');
-            document.getElementById('stars').appendChild(s);
+            starsBox.appendChild(s);
         }
 
         function showToast(m) {
             const t = document.getElementById('toast');
             if (t) {
                 t.innerText = m; t.style.display = 'block';
-                setTimeout(() => t.style.display = 'none', 3000);
+                setTimeout(() => { if(t) t.style.display = 'none'; }, 3000);
             }
         }
 
