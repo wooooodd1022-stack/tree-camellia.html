@@ -17,7 +17,7 @@
             overflow: hidden;
             margin: 0;
             height: 100dvh;
-            touch-action: none; /* 모바일에서 원치 않는 스크롤/확대 방지 */
+            touch-action: none;
         }
 
         #intro-screen {
@@ -27,7 +27,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 1000; /* 인트로는 가장 위 */
+            z-index: 1000;
             background: #0a0a0a;
             transition: opacity 1.5s ease;
             padding: 20px;
@@ -51,27 +51,35 @@
 
         @keyframes pulse { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } }
 
+        /* 나무 컨테이너 수정: 하단 안착 및 반응형 높이 */
         #memorial-tree-container {
             position: absolute;
             bottom: 0;
             left: 50%;
             transform: translateX(-50%);
             width: 100%;
-            max-width: 850px;
-            height: 85vh;
+            max-width: 900px;
+            height: 80vh; /* 화면 높이의 80% 사용 */
+            max-height: 800px;
             z-index: 2;
             opacity: 0;
             transition: opacity 2s ease;
             display: flex;
             justify-content: center;
-            align-items: flex-end;
-            pointer-events: none; /* 나무 자체는 클릭 방해 안 함 */
+            align-items: flex-end; /* 아래쪽 정렬 */
+            pointer-events: none;
+        }
+
+        #tree-svg {
+            width: auto;
+            height: 100%;
+            max-width: 100%;
         }
 
         #flower-layer {
             position: absolute;
             inset: 0;
-            pointer-events: auto; /* 꽃 클릭 가능하게 */
+            pointer-events: auto;
             z-index: 5;
         }
 
@@ -93,7 +101,7 @@
             padding: 2.5rem 1.5rem; 
             border-radius: 40px;
             border: 2px solid rgba(225, 29, 72, 0.5); 
-            z-index: 5000; /* 모달은 나무보다 훨씬 위 */
+            z-index: 5000;
             width: 90%; 
             max-width: 480px;
             box-shadow: 0 0 150px rgba(0, 0, 0, 1); 
@@ -106,7 +114,7 @@
             font-family: 'Nanum Brush Script', cursive; text-align: center;
             outline: none; font-size: 1.8rem;
             line-height: 1.4;
-            -webkit-appearance: none; /* 모바일 기본 디자인 제거 */
+            -webkit-appearance: none;
         }
 
         .btn-send {
@@ -114,9 +122,10 @@
             font-size: 2.2rem; transition: 0.3s; border: none; cursor: pointer;
             margin-top: 1rem;
             box-shadow: 0 5px 15px rgba(225, 29, 72, 0.4);
-            touch-action: manipulation; /* 터치 지연 제거 */
+            touch-action: manipulation;
         }
         .btn-send:active { transform: scale(0.95); opacity: 0.8; }
+        .btn-send:disabled { background: #4c1d24; cursor: not-allowed; opacity: 0.6; }
 
         .tooltip {
             position: fixed; background: #fff; color: #0f172a; padding: 16px 24px;
@@ -160,6 +169,7 @@
     </div>
 
     <div id="memorial-tree-container">
+        <!-- SVG viewBox는 유지하되 스타일로 크기 제어 -->
         <svg id="tree-svg" viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax meet">
             <g fill="#080808">
                 <path d="M255,800 L345,800 Q325,580 310,480 L290,480 Q275,580 255,800 Z" />
@@ -212,16 +222,15 @@
         const app = firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore(app);
         const auth = firebase.auth(app);
-        const appId = 'camellia-memorial-final';
+        // 고유 ID를 통해 깨끗한 환경에서 시작
+        const appId = 'camellia-memorial-final-v3'; 
 
-        // 1. 초기 익명 인증
         async function initAuth() {
             try {
                 if (!auth.currentUser) await auth.signInAnonymously();
             } catch (e) { console.error("Auth error:", e); }
         }
 
-        // 2. 배경 별 생성
         function createStars() {
             const container = document.getElementById('stars');
             for (let i = 0; i < 70; i++) {
@@ -234,7 +243,6 @@
             }
         }
 
-        // 3. 잎사귀 생성
         function generateLeaves() {
             const leafLayer = document.getElementById('leaf-layer');
             const branches = document.querySelectorAll('#tree-branches path');
@@ -253,13 +261,13 @@
             });
         }
 
-        // 4. 모달 및 이벤트 바인딩
         const intro = document.getElementById('intro-screen');
         const startBtn = document.getElementById('start-btn');
         const modal = document.getElementById('memorial-modal');
         const trigger = document.getElementById('write-trigger');
         const sendBtn = document.getElementById('send-btn');
         const closeBtn = document.getElementById('close-btn');
+        const msgInput = document.getElementById('msg-input');
 
         startBtn.addEventListener('click', () => {
             intro.classList.add('fade-out');
@@ -270,12 +278,18 @@
             loadFlowers();
         });
 
-        trigger.addEventListener('click', () => modal.style.display = 'block');
-        closeBtn.addEventListener('click', () => modal.style.display = 'none');
+        trigger.addEventListener('click', () => {
+            modal.style.display = 'block';
+            msgInput.focus();
+        });
+
+        closeBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
 
         sendBtn.addEventListener('click', async (e) => {
             e.preventDefault();
-            const msg = document.getElementById('msg-input').value.trim();
+            const msg = msgInput.value.trim();
             if (!msg) return;
 
             sendBtn.disabled = true;
@@ -283,17 +297,19 @@
 
             try {
                 await initAuth();
-                const x = Math.random() * 80 + 10;
-                const y = Math.random() * 50 + 20;
+                // 나무 SVG 좌표계(0~600, 0~800) 내에 적절히 배치되도록 범위 설정
+                const x = Math.random() * 70 + 15; // 15% ~ 85%
+                const y = Math.random() * 50 + 15; // 15% ~ 65%
 
                 await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
                     message: msg, x, y, createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                document.getElementById('msg-input').value = '';
+                msgInput.value = '';
+                document.getElementById('char-indicator').innerText = '0 / 150';
                 modal.style.display = 'none';
             } catch (err) {
-                console.error(err);
+                console.error("전송 실패:", err);
             } finally {
                 sendBtn.disabled = false;
                 sendBtn.innerText = "꽃 피우기";
@@ -319,7 +335,7 @@
             wrap.style.left = x + '%'; wrap.style.top = y + '%';
             
             wrap.innerHTML = `
-                <svg viewBox="0 0 100 100" class="camellia-flower-svg" style="width:45px; height:45px;">
+                <svg viewBox="0 0 100 100" class="camellia-flower-svg" style="width:clamp(35px, 5vw, 50px); height:clamp(35px, 5vw, 50px);">
                     <circle cx="50" cy="30" r="22" fill="#e11d48" />
                     <circle cx="50" cy="70" r="22" fill="#e11d48" />
                     <circle cx="30" cy="50" r="22" fill="#e11d48" />
@@ -332,13 +348,19 @@
                 const tt = document.getElementById('tooltip');
                 tt.innerText = msg;
                 tt.style.display = 'block';
-                tt.style.left = (e.clientX - 50) + 'px';
-                tt.style.top = (e.clientY - 80) + 'px';
+                // 툴팁 위치를 클릭 지점 기준으로 계산
+                const rect = layer.getBoundingClientRect();
+                tt.style.left = (e.clientX - 100) + 'px';
+                tt.style.top = (e.clientY - 100) + 'px';
                 setTimeout(() => tt.style.display = 'none', 3000);
             });
 
             layer.appendChild(wrap);
         }
+
+        msgInput.addEventListener('input', (e) => {
+            document.getElementById('char-indicator').innerText = `${e.target.value.length} / 150`;
+        });
 
         window.onload = () => {
             initAuth();
