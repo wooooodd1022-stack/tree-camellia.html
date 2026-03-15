@@ -265,13 +265,15 @@
 
         function openMemorial() {
             const modal = document.getElementById('memorial-modal');
-            modal.style.display = 'block';
+            modal.style.setProperty('display', 'block', 'important');
             document.getElementById('msg-input').focus();
         }
 
         function closeMemorial() {
             const modal = document.getElementById('memorial-modal');
-            modal.style.display = 'none';
+            modal.style.setProperty('display', 'none', 'important');
+            
+            // 입력창 및 버튼 초기화
             const input = document.getElementById('msg-input');
             const btn = document.getElementById('send-btn');
             input.value = '';
@@ -287,43 +289,33 @@
             
             if (!msg) return;
 
-            // 버튼 즉시 비활성화
+            // 1. UI 즉시 반응 (모달 닫기 및 버튼 비활성화를 최우선 실행)
             btn.disabled = true;
             btn.innerText = "피우는 중...";
+            
+            // 네트워크 응답을 기다리지 않고 모달을 먼저 닫습니다.
+            closeMemorial();
 
             try {
-                // 인증 확인
+                // 2. 백그라운드에서 전송 로직 수행
                 await initAuth();
                 
-                // 위치 계산
                 const x = Math.random() * 60 + 20;
                 const y = Math.random() * 50 + 10;
 
-                // 데이터 전송
-                // GitHub 같은 환경에서 지연이 생기더라도 사용자 경험을 위해 UI를 먼저 닫거나 
-                // 전송 직후 바로 닫히도록 closeMemorial()을 호출합니다.
+                // .then()을 사용하여 비동기 전송 수행 (await으로 흐름을 막지 않음)
                 db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
                     message: msg, 
                     x: x, 
                     y: y, 
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                }).then(() => {
-                    console.log("꽃 피우기 성공");
-                }).catch((error) => {
-                    console.error("Firebase Add Error:", error);
+                }).catch(err => {
+                    console.error("데이터 저장 실패:", err);
                 });
-
-                // 전송 요청을 보낸 직후 바로 닫기 (네트워크 대기 없이 즉각 반응)
-                closeMemorial();
                 
             } catch (e) {
-                console.error("General Error:", e);
-                // 치명적인 오류 발생 시에만 버튼 복구
-                btn.innerText = "전송 실패";
-                setTimeout(() => {
-                    btn.disabled = false;
-                    btn.innerText = "꽃 피우기";
-                }, 2000);
+                console.error("인증 또는 전송 중 오류:", e);
+                // 이미 모달이 닫혔으므로 콘솔로그로만 기록
             }
         }
 
