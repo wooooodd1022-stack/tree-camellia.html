@@ -287,6 +287,7 @@
             
             if (!msg) return;
 
+            // 버튼 즉시 비활성화
             btn.disabled = true;
             btn.innerText = "피우는 중...";
 
@@ -298,19 +299,26 @@
                 const x = Math.random() * 60 + 20;
                 const y = Math.random() * 50 + 10;
 
-                // 데이터 전송 (완료될 때까지 await)
-                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
+                // 데이터 전송
+                // GitHub 같은 환경에서 지연이 생기더라도 사용자 경험을 위해 UI를 먼저 닫거나 
+                // 전송 직후 바로 닫히도록 closeMemorial()을 호출합니다.
+                db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
                     message: msg, 
                     x: x, 
                     y: y, 
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                    console.log("꽃 피우기 성공");
+                }).catch((error) => {
+                    console.error("Firebase Add Error:", error);
                 });
 
-                // 전송 완료 후 즉시 닫기 호출
+                // 전송 요청을 보낸 직후 바로 닫기 (네트워크 대기 없이 즉각 반응)
                 closeMemorial();
                 
             } catch (e) {
-                console.error("Firebase Error:", e);
+                console.error("General Error:", e);
+                // 치명적인 오류 발생 시에만 버튼 복구
                 btn.innerText = "전송 실패";
                 setTimeout(() => {
                     btn.disabled = false;
