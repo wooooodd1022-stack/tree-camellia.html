@@ -6,16 +6,10 @@
     <title>4월엔 동백꽃을 달아주세요 - 제주 4.3 추모</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Firebase SDK (최신 모듈형 v11 사용) -->
-    <script type="importmap">
-    {
-      "imports": {
-        "firebase/app": "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js",
-        "firebase/auth": "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js",
-        "firebase/firestore": "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js"
-      }
-    }
-    </script>
+    <!-- Firebase SDK (안정적인 버전 사용) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <link href="https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&display=swap" rel="stylesheet">
     <style>
@@ -69,8 +63,8 @@
         }
         .toast {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.8); color: white; padding: 10px 25px; border-radius: 50px;
-            z-index: 5000; display: none;
+            background: rgba(225, 29, 72, 0.9); color: white; padding: 10px 25px; border-radius: 50px;
+            z-index: 5000; display: none; font-weight: bold;
         }
     </style>
 </head>
@@ -91,7 +85,7 @@
         <p class="brush-font text-2xl text-rose-300 mt-8 animate-pulse">동백꽃을 눌러주세요</p>
     </div>
 
-    <div id="main-ui" style="opacity:0;" class="absolute top-10 w-full text-center z-[100] transition-opacity duration-1000">
+    <div id="main-ui" style="opacity:0;" class="absolute top-10 w-full text-center z-[100] transition-opacity duration-1000 pointer-events-none">
         <h1 class="brush-font text-rose-500 text-5xl md:text-6xl">4월엔 동백꽃을 달아주세요</h1>
         <p class="brush-font text-rose-200 text-2xl mt-2 opacity-70">여러분의 마음이 나무를 피웁니다.</p>
     </div>
@@ -108,7 +102,6 @@
         <div id="flower-layer"></div>
     </div>
 
-    <!-- 글쓰기 버튼 -->
     <div id="write-trigger" style="display:none;" class="fixed bottom-10 right-10 w-20 h-20 cursor-pointer z-[500] animate-bounce">
         <svg viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="45" fill="#e11d48" opacity="0.8" />
@@ -116,7 +109,6 @@
         </svg>
     </div>
 
-    <!-- 모달 -->
     <div id="memorial-modal">
         <h3 class="brush-font text-3xl text-rose-100 mb-4 text-center">추모의 글 남기기</h3>
         <textarea id="msg-input" placeholder="이곳에 따뜻한 마음을 적어주세요..."></textarea>
@@ -128,30 +120,16 @@
 
     <div id="tooltip" class="tooltip"></div>
 
-    <script type="module">
-        import { initializeApp } from "firebase/app";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
-        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
+    <script>
+        // Global environment variables
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'jeju-43-memorial';
 
-        // Firebase 설정
-        const firebaseConfig = {
-            apiKey: "AIzaSyDTrSN6wwJEAjiL3HwMh9woNmJ5NwSg1cQ",
-            authDomain: "tree-7ef79.firebaseapp.com",
-            projectId: "tree-7ef79",
-            storageBucket: "tree-7ef79.firebasestorage.app",
-            messagingSenderId: "495473926266",
-            appId: "1:495473926266:web:bce30dde7026b2eff25bc3"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
         
-        // 중요: Canvas 환경의 규칙에 맞는 appId와 경로 설정
-        const currentAppId = 'jeju-43-final-project'; 
-        const flowersCollectionPath = ['artifacts', currentAppId, 'public', 'data', 'flowers'];
-
-        let userUid = null;
         const renderedIds = new Set();
 
         function showToast(m) {
@@ -160,43 +138,66 @@
             setTimeout(() => t.style.display = 'none', 3000);
         }
 
-        // 1. 인증 시작
-        const init = async () => {
+        /**
+         * RULE 3: Auth Before Queries
+         * Custom token을 먼저 사용하고 실패하거나 없을 경우 익명 로그인을 시도합니다.
+         */
+        async function startAuth() {
             try {
-                await signInAnonymously(auth);
-            } catch (e) {
-                console.error("Auth Failed", e);
-                showToast("인터넷 연결을 확인해주세요.");
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await auth.signInWithCustomToken(__initial_auth_token);
+                } else {
+                    await auth.signInAnonymously();
+                }
+            } catch (error) {
+                console.error("Auth Error:", error);
+                // 만약 익명 로그인이 활성화되지 않았다면 유저에게 알림
+                if (error.code === 'auth/admin-restricted-operation') {
+                    showToast("Firebase 설정에서 '익명 로그인'을 활성화해주세요.");
+                } else {
+                    showToast("서버 인증에 실패했습니다.");
+                }
             }
-        };
+        }
 
-        onAuthStateChanged(auth, (user) => {
+        // 로그인 상태 감지 후 데이터 로드
+        auth.onAuthStateChanged((user) => {
             if (user) {
-                userUid = user.uid;
+                console.log("Authenticated as:", user.uid);
                 loadFlowers();
             }
         });
 
-        // 2. 꽃 데이터 실시간 로드
         function loadFlowers() {
-            const colRef = collection(db, ...flowersCollectionPath);
-            onSnapshot(colRef, (snapshot) => {
-                snapshot.docChanges().forEach(change => {
-                    if (change.type === "added") {
-                        const data = change.doc.data();
-                        if (!renderedIds.has(change.doc.id)) {
-                            renderFlower(data.x, data.y, data.message);
-                            renderedIds.add(change.doc.id);
+            /** * RULE 1: Strict Paths
+             * /artifacts/{appId}/public/data/{collectionName}
+             */
+            db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers')
+                .onSnapshot((snapshot) => {
+                    snapshot.docChanges().forEach(change => {
+                        if (change.type === "added") {
+                            const data = change.doc.data();
+                            if (!renderedIds.has(change.doc.id)) {
+                                renderFlower(data.x, data.y, data.message);
+                                renderedIds.add(change.doc.id);
+                            }
                         }
+                    });
+                }, (err) => {
+                    console.error("Firestore Listen Error:", err);
+                    if (err.code === 'permission-denied') {
+                        showToast("데이터 읽기 권한이 거부되었습니다.");
                     }
                 });
-            }, (err) => {
-                console.error("Firestore Error:", err);
-            });
         }
 
-        // 3. 꽃 저장 (꽃 피우기)
         async function plantFlower() {
+            const user = auth.currentUser;
+            if (!user) {
+                showToast("인증 중입니다. 잠시만 기다려주세요.");
+                return;
+            }
+
             const input = document.getElementById('msg-input');
             const msg = input.value.trim();
             if (!msg) return;
@@ -206,24 +207,22 @@
             btn.innerText = "피우는 중...";
 
             try {
-                const colRef = collection(db, ...flowersCollectionPath);
-                // 랜덤 위치 (나무 가지 근처로 제한)
-                const x = Math.random() * 60 + 20;
-                const y = Math.random() * 40 + 15;
+                const x = 20 + (Math.random() * 60); 
+                const y = 15 + (Math.random() * 45);
 
-                await addDoc(colRef, {
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
                     message: msg,
                     x: x,
                     y: y,
-                    uid: userUid,
-                    createdAt: serverTimestamp()
+                    uid: user.uid,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
                 closeModal();
-                showToast("나무에 꽃이 피었습니다.");
+                showToast("동백꽃이 피어났습니다.");
             } catch (e) {
-                console.error("Save Error", e);
-                showToast("저장에 실패했습니다. 규칙을 확인하세요.");
+                console.error("Save Error:", e);
+                showToast("꽃을 피우지 못했습니다. 경로와 규칙을 확인하세요.");
                 btn.disabled = false;
                 btn.innerText = "꽃 피우기";
             }
@@ -233,10 +232,11 @@
             const layer = document.getElementById('flower-layer');
             const wrap = document.createElement('div');
             wrap.className = 'flower-node';
-            wrap.style.left = x + '%'; wrap.style.top = y + '%';
+            wrap.style.left = x + '%'; 
+            wrap.style.top = y + '%';
             
             wrap.innerHTML = `
-                <svg viewBox="0 0 100 100" width="40" height="40">
+                <svg viewBox="0 0 100 100" width="35" height="35">
                     <circle cx="50" cy="32" r="23" fill="#e11d48" />
                     <circle cx="50" cy="68" r="23" fill="#e11d48" />
                     <circle cx="32" cy="50" r="23" fill="#e11d48" />
@@ -258,8 +258,8 @@
             setTimeout(() => wrap.style.transform = 'translate(-50%, -50%) scale(1)', 100);
         }
 
-        // UI 제어
-        const startMemorial = () => {
+        // UI 이벤트 바인딩
+        document.getElementById('start-memorial-btn').onclick = () => {
             document.getElementById('intro-screen').style.opacity = '0';
             setTimeout(() => {
                 document.getElementById('intro-screen').style.display = 'none';
@@ -277,23 +277,23 @@
             document.getElementById('send-btn').innerText = "꽃 피우기";
         };
 
-        document.getElementById('start-memorial-btn').onclick = startMemorial;
         document.getElementById('write-trigger').onclick = openModal;
         document.getElementById('close-modal-btn').onclick = closeModal;
         document.getElementById('send-btn').onclick = plantFlower;
 
-        // 별 배경
-        const stars = document.getElementById('stars');
-        for(let i=0; i<60; i++) {
+        // 배경 별 생성
+        const starsContainer = document.getElementById('stars');
+        for(let i=0; i<80; i++) {
             const s = document.createElement('div');
             s.className = 'star';
             s.style.left = Math.random()*100+'%'; s.style.top = Math.random()*100+'%';
-            s.style.width = s.style.height = Math.random()*3+'px';
+            s.style.width = s.style.height = Math.random()*2.5+'px';
             s.style.setProperty('--t', Math.random()*3+2+'s');
-            stars.appendChild(s);
+            starsContainer.appendChild(s);
         }
 
-        init();
+        // 초기화 시 인증 시작
+        startAuth();
     </script>
 </body>
 </html>
