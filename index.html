@@ -165,11 +165,20 @@
     <div id="tooltip" class="tooltip"></div>
 
     <script>
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // Firebase 설정 (Canvas 외부 배포를 위해 동적 할당 및 기본값 처리)
+        let firebaseConfig;
+        try {
+            firebaseConfig = JSON.parse(__firebase_config);
+        } catch (e) {
+            console.error("Firebase config missing. Please check your environment variables.");
+        }
+        
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'jeju-43-memorial-final';
 
         // Firebase 초기화
-        firebase.initializeApp(firebaseConfig);
+        if (firebaseConfig) {
+            firebase.initializeApp(firebaseConfig);
+        }
         const auth = firebase.auth();
         const db = firebase.firestore();
         
@@ -211,20 +220,24 @@
             });
         }
 
-        // 인증 처리 (익명 로그인)
+        // 인증 처리 (익명 로그인 - 재시도 로직 포함)
         async function startAuth() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await auth.signInWithCustomToken(__initial_auth_token);
-                } else {
-                    await auth.signInAnonymously();
+            const signIn = async (retries = 5, delay = 1000) => {
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await auth.signInWithCustomToken(__initial_auth_token);
+                    } else {
+                        await auth.signInAnonymously();
+                    }
+                } catch (error) {
+                    if (retries > 0) {
+                        await new Promise(res => setTimeout(res, delay));
+                        return signIn(retries - 1, delay * 2);
+                    }
+                    console.error("Auth Error after retries:", error);
                 }
-            } catch (error) {
-                console.error("Auth Error:", error);
-                if (error.code !== 'auth/admin-restricted-operation') {
-                    try { await auth.signInAnonymously(); } catch (e) {}
-                }
-            }
+            };
+            await signIn();
         }
 
         auth.onAuthStateChanged((user) => {
@@ -254,7 +267,11 @@
         // 꽃 피우기 (Firebase 저장)
         async function plantFlower() {
             const user = auth.currentUser;
-            if (!user) return showToast("인증 진행 중입니다...");
+            if (!user) {
+                showToast("인증 진행 중입니다. 잠시만 기다려주세요.");
+                await startAuth();
+                return;
+            }
 
             const input = document.getElementById('msg-input');
             const msg = input.value.trim();
@@ -281,7 +298,7 @@
                 showToast("동백꽃 한 송이가 피어났습니다.");
             } catch (e) {
                 console.error("Save Error:", e);
-                showToast("꽃을 피우지 못했습니다.");
+                showToast("꽃을 피우지 못했습니다. 다시 시도해 주세요.");
                 btn.disabled = false;
                 btn.innerText = "꽃 피우기";
             }
@@ -305,12 +322,14 @@
                 </svg>
             `;
 
+            // 상호작용 (pointerdown으로 통합하여 외부 환경 호환성 높임)
             const handleInteraction = (e) => {
-                e.preventDefault();
+                // e.preventDefault(); // 외부 스크롤이나 다른 인터랙션을 위해 preventDefault 제거
                 e.stopPropagation();
                 const tt = document.getElementById('tooltip');
                 tt.innerText = msg;
                 tt.style.display = 'block';
+                
                 const clientX = e.clientX || (e.touches && e.touches[0].clientX);
                 const clientY = e.clientY || (e.touches && e.touches[0].clientY);
                 
@@ -320,18 +339,20 @@
                 if (tx + 260 > window.innerWidth) tx = window.innerWidth - 270;
                 
                 tt.style.left = tx + 'px'; tt.style.top = ty + 'px';
-                setTimeout(() => tt.style.display = 'none', 4000);
+                
+                // 터치 기기에서는 일정 시간 후 사라지게 처리
+                setTimeout(() => { if(tt) tt.style.display = 'none'; }, 4000);
             };
 
-            wrap.addEventListener('mousedown', handleInteraction);
-            wrap.addEventListener('touchstart', handleInteraction, {passive: false});
+            // 모든 포인터 기기 지원
+            wrap.addEventListener('pointerdown', handleInteraction);
 
             layer.appendChild(wrap);
             setTimeout(() => wrap.style.transform = `translate(-50%, -50%) scale(1) rotate(${Math.random()*360}deg)`, 50);
         }
 
-        // 인트로 버튼 이벤트
-        document.getElementById('start-memorial-btn').onclick = () => {
+        // 인트로 버튼 이벤트 (pointerdown 사용)
+        document.getElementById('start-memorial-btn').addEventListener('pointerdown', () => {
             document.getElementById('intro-screen').style.opacity = '0';
             setTimeout(() => {
                 document.getElementById('intro-screen').style.display = 'none';
@@ -340,7 +361,7 @@
                 document.getElementById('write-trigger').style.display = 'block';
                 generateLeaves();
             }, 1200);
-        };
+        });
 
         const openModal = () => { document.getElementById('memorial-modal').style.display = 'block'; };
         const closeModal = () => { 
@@ -365,7 +386,8 @@
             starsContainer.appendChild(s);
         }
 
-        window.onload = startAuth;
+        // 초기 구동
+        window.addEventListener('load', startAuth);
     </script>
 </body>
 </html>
