@@ -51,29 +51,29 @@
 
         @keyframes pulse { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } }
 
-        /* 나무 컨테이너 수정: 하단 안착 및 반응형 높이 */
+        /* 나무 컨테이너 수정: 화면 비율에 상관없이 나무 전체가 보이도록 설정 */
         #memorial-tree-container {
             position: absolute;
-            bottom: 0;
+            bottom: 5vh; /* 바닥에서 약간 띄워 시각적 안정감 부여 */
             left: 50%;
             transform: translateX(-50%);
-            width: 100%;
-            max-width: 900px;
-            height: 80vh; /* 화면 높이의 80% 사용 */
+            width: 90vw;
+            height: 70vh; /* 노트북에서도 전체가 보이도록 높이 조절 */
+            max-width: 800px;
             max-height: 800px;
             z-index: 2;
             opacity: 0;
             transition: opacity 2s ease;
             display: flex;
             justify-content: center;
-            align-items: flex-end; /* 아래쪽 정렬 */
+            align-items: flex-end;
             pointer-events: none;
         }
 
         #tree-svg {
-            width: auto;
+            width: 100%;
             height: 100%;
-            max-width: 100%;
+            /* SVG가 컨테이너 내에서 잘리지 않고 전체가 들어오도록 함 */
         }
 
         #flower-layer {
@@ -89,6 +89,7 @@
             pointer-events: auto;
             cursor: pointer;
             transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform: translate(-50%, -50%); /* 중심점 정렬 */
         }
 
         #memorial-modal {
@@ -169,8 +170,8 @@
     </div>
 
     <div id="memorial-tree-container">
-        <!-- SVG viewBox는 유지하되 스타일로 크기 제어 -->
-        <svg id="tree-svg" viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax meet">
+        <!-- preserveAspectRatio를 xMidYMid meet로 설정하여 나무 전체가 중앙에 배치되도록 함 -->
+        <svg id="tree-svg" viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
             <g fill="#080808">
                 <path d="M255,800 L345,800 Q325,580 310,480 L290,480 Q275,580 255,800 Z" />
             </g>
@@ -222,7 +223,6 @@
         const app = firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore(app);
         const auth = firebase.auth(app);
-        // 고유 ID를 통해 깨끗한 환경에서 시작
         const appId = 'camellia-memorial-final-v3'; 
 
         async function initAuth() {
@@ -297,9 +297,8 @@
 
             try {
                 await initAuth();
-                // 나무 SVG 좌표계(0~600, 0~800) 내에 적절히 배치되도록 범위 설정
-                const x = Math.random() * 70 + 15; // 15% ~ 85%
-                const y = Math.random() * 50 + 15; // 15% ~ 65%
+                const x = Math.random() * 70 + 15; 
+                const y = Math.random() * 50 + 15; 
 
                 await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
                     message: msg, x, y, createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -335,7 +334,7 @@
             wrap.style.left = x + '%'; wrap.style.top = y + '%';
             
             wrap.innerHTML = `
-                <svg viewBox="0 0 100 100" class="camellia-flower-svg" style="width:clamp(35px, 5vw, 50px); height:clamp(35px, 5vw, 50px);">
+                <svg viewBox="0 0 100 100" class="camellia-flower-svg" style="width:clamp(30px, 4vw, 45px); height:clamp(30px, 4vw, 45px);">
                     <circle cx="50" cy="30" r="22" fill="#e11d48" />
                     <circle cx="50" cy="70" r="22" fill="#e11d48" />
                     <circle cx="30" cy="50" r="22" fill="#e11d48" />
@@ -348,8 +347,6 @@
                 const tt = document.getElementById('tooltip');
                 tt.innerText = msg;
                 tt.style.display = 'block';
-                // 툴팁 위치를 클릭 지점 기준으로 계산
-                const rect = layer.getBoundingClientRect();
                 tt.style.left = (e.clientX - 100) + 'px';
                 tt.style.top = (e.clientY - 100) + 'px';
                 setTimeout(() => tt.style.display = 'none', 3000);
