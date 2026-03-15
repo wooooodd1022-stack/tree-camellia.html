@@ -6,16 +6,15 @@
     <title>4월엔 동백꽃을 달아주세요 - 제주 4.3 추모</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Firebase SDK (호환성 모드 사용) -->
+    <!-- Firebase SDK (Compatibility mode) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-    <link href="https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&display=swap" rel="stylesheet">
     <style>
-        .brush-font { font-family: 'Nanum Brush Script', cursive; }
+        /* 기본 시스템 글꼴 사용 */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Pretendard JP", "Pretendard", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background: radial-gradient(circle at bottom, #161625 0%, #050505 100%);
             color: #f1f5f9;
             overflow: hidden;
@@ -33,16 +32,17 @@
         .intro-camellia { width: clamp(140px, 40vw, 180px); cursor: pointer; filter: drop-shadow(0 0 30px rgba(225, 29, 72, 0.5)); transition: 0.3s; }
         .intro-camellia:active { transform: scale(0.9); }
 
-        /* 메인 나무 컨테이너 */
+        /* 나무 컨테이너 */
         #memorial-tree-container {
             position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
             width: 100%; max-width: 800px; height: 85vh; opacity: 0; transition: opacity 2s;
-            pointer-events: none; /* 하위 요소인 꽃 레이어는 auto로 덮음 */
+            pointer-events: none;
+            display: flex; justify-content: center; align-items: flex-end;
         }
 
-        #tree-svg { width: 100%; height: 100%; pointer-events: none; }
+        #tree-svg { width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 
-        /* 꽃 레이어: 최상단에서 클릭을 받아야 함 */
+        /* 꽃 레이어 */
         #flower-layer { 
             position: absolute; inset: 0; 
             z-index: 200; 
@@ -61,42 +61,39 @@
         /* 모달 디자인 */
         #memorial-modal {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #121212; padding: 2rem; border-radius: 30px; z-index: 6000; width: 90%; max-width: 400px;
+            background: #121212; padding: 2.5rem 2rem; border-radius: 24px; z-index: 6000; width: 90%; max-width: 400px;
             border: 1px solid #e11d48; box-shadow: 0 0 80px rgba(0,0,0,0.9);
+            text-align: center;
         }
         #msg-input { 
-            width: 100%; height: 160px; background: #1a1a1a; color: #fff; padding: 15px; 
-            border-radius: 15px; border: 1px solid #333; resize: none; margin-bottom: 15px;
-            font-size: 1.6rem; outline: none; font-family: 'Nanum Brush Script', cursive;
-            line-height: 1.4; text-align: center;
+            width: 100%; height: 140px; background: #1a1a1a; color: #fff; padding: 15px; 
+            border-radius: 12px; border: 1px solid #333; resize: none; margin-bottom: 20px;
+            font-size: 1rem; outline: none; line-height: 1.6;
         }
 
         .star { position: absolute; background: white; border-radius: 50%; opacity: 0.3; animation: twinkle var(--t) infinite; pointer-events: none; }
         @keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.7; } }
         
+        /* 툴팁 */
         .tooltip {
-            position: fixed; background: white; color: black; padding: 12px 20px; border-radius: 15px;
-            display: none; z-index: 7000; pointer-events: none; box-shadow: 0 5px 25px rgba(0,0,0,0.4);
-            font-size: 1.4rem; max-width: 260px; text-align: center; font-family: 'Nanum Brush Script', cursive;
-            word-break: keep-all;
+            position: fixed; background: rgba(255, 255, 255, 0.95); color: #1a1a1a; padding: 14px 20px; border-radius: 12px;
+            display: none; z-index: 7000; pointer-events: none; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            font-size: 1rem; max-width: 260px; text-align: center; font-weight: 500;
+            word-break: keep-all; backdrop-filter: blur(5px);
         }
         
         .toast {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
             background: rgba(225, 29, 72, 0.95); color: white; padding: 12px 30px; border-radius: 50px;
-            z-index: 8000; display: none; font-weight: bold; font-size: 1.1rem;
+            z-index: 8000; display: none; font-weight: 600; font-size: 0.95rem;
         }
 
-        /* 꽃잎 날리기 효과 */
-        .petal-effect {
-            position: absolute; width: 15px; height: 15px; background: #e11d48;
-            border-radius: 100% 0 100% 0; pointer-events: none; z-index: 1000;
-            animation: petal-fall 2s ease-out forwards;
+        /* 작성 버튼 효과 */
+        .camellia-btn {
+            filter: drop-shadow(0 4px 15px rgba(225, 29, 72, 0.4));
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        @keyframes petal-fall {
-            0% { transform: translate(0,0) rotate(0deg); opacity: 1; }
-            100% { transform: translate(var(--dx), var(--dy)) rotate(360deg); opacity: 0; }
-        }
+        .camellia-btn:hover { transform: scale(1.1) rotate(10deg); }
     </style>
 </head>
 <body>
@@ -104,8 +101,9 @@
     <div id="stars"></div>
     <div id="toast" class="toast"></div>
 
+    <!-- 시작 화면 -->
     <div id="intro-screen">
-        <h2 class="brush-font text-5xl text-rose-100 mb-10">4월엔 동백꽃을 달아주세요</h2>
+        <h2 class="text-3xl font-bold text-rose-100 mb-10">4월엔 동백꽃을 달아주세요</h2>
         <div class="intro-camellia" id="start-memorial-btn">
             <svg viewBox="0 0 100 100">
                 <circle cx="50" cy="32" r="23" fill="#e11d48" /><circle cx="50" cy="68" r="23" fill="#e11d48" />
@@ -113,51 +111,64 @@
                 <circle cx="50" cy="50" r="14" fill="#fbbf24" />
             </svg>
         </div>
-        <p class="brush-font text-2xl text-rose-300 mt-8 animate-pulse">동백꽃을 눌러주세요</p>
+        <p class="text-lg text-rose-300 mt-8 animate-pulse font-medium">동백꽃을 눌러주세요</p>
     </div>
 
-    <div id="main-ui" style="opacity:0;" class="absolute top-10 w-full text-center z-[50] transition-opacity duration-1000 pointer-events-none">
-        <h1 class="brush-font text-rose-500 text-5xl md:text-6xl">4월엔 동백꽃을 달아주세요</h1>
-        <p class="brush-font text-rose-200 text-2xl mt-2 opacity-70">기억은 지지 않는 꽃이 됩니다.</p>
+    <!-- 상단 텍스트 -->
+    <div id="main-ui" style="opacity:0;" class="absolute top-12 w-full text-center z-[50] transition-opacity duration-1000 pointer-events-none">
+        <h1 class="text-rose-500 text-4xl font-black mb-3">4월엔 동백꽃을 달아주세요</h1>
+        <p class="text-rose-100 text-lg font-medium opacity-80">기억은 지지 않는 꽃이 됩니다.</p>
     </div>
 
+    <!-- 추모 나무 구역 -->
     <div id="memorial-tree-container">
         <svg id="tree-svg" viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax meet">
+            <!-- 나무 기둥 -->
             <path d="M260,800 L340,800 Q320,550 300,450 Q280,550 260,800 Z" fill="#0f0f1a" />
+            <!-- 나뭇가지 -->
             <g id="tree-branches" stroke="#0f0f1a" fill="none" stroke-width="15" stroke-linecap="round">
                 <path d="M300,450 Q200,420 80,450" />
                 <path d="M300,450 Q400,380 520,420" />
                 <path d="M300,350 Q200,300 120,250" />
                 <path d="M300,350 Q400,280 480,240" />
                 <path d="M300,450 L300,100" stroke-width="12" />
+                <path d="M300,250 Q180,200 100,150" stroke-width="8" />
+                <path d="M300,250 Q420,180 500,150" stroke-width="8" />
             </g>
+            <!-- 나뭇잎 레이어 -->
+            <g id="leaf-layer"></g>
         </svg>
+        <!-- 꽃이 피어날 레이어 -->
         <div id="flower-layer"></div>
     </div>
 
-    <div id="write-trigger" style="display:none;" class="fixed bottom-10 right-10 w-20 h-20 cursor-pointer z-[500] animate-bounce">
+    <!-- 동백꽃 작성 버튼 -->
+    <div id="write-trigger" style="display:none;" class="fixed bottom-10 right-10 w-24 h-24 cursor-pointer z-[500] camellia-btn">
         <svg viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="45" fill="#e11d48" opacity="0.9" />
-            <path d="M30,50 L70,50 M50,30 L50,70" stroke="white" stroke-width="8" stroke-linecap="round" />
+            <circle cx="50" cy="32" r="23" fill="#e11d48" /><circle cx="50" cy="68" r="23" fill="#e11d48" />
+            <circle cx="32" cy="50" r="23" fill="#e11d48" /><circle cx="68" cy="50" r="23" fill="#e11d48" />
+            <circle cx="50" cy="50" r="14" fill="#fbbf24" />
         </svg>
+        <p class="text-rose-200 text-center text-sm font-bold mt-1">추모하기</p>
     </div>
 
+    <!-- 글쓰기 모달 -->
     <div id="memorial-modal">
-        <h3 class="brush-font text-3xl text-rose-100 mb-4 text-center">추모의 글 남기기</h3>
+        <h3 class="text-2xl font-bold text-rose-100 mb-6">추모의 글 남기기</h3>
         <textarea id="msg-input" placeholder="따뜻한 기억의 문장을 적어주세요..."></textarea>
-        <div class="flex justify-center gap-4">
-            <button id="close-modal-btn" class="brush-font text-2xl text-gray-400 px-4">닫기</button>
-            <button id="send-btn" class="brush-font text-2xl bg-rose-600 text-white px-8 py-2 rounded-full shadow-lg">꽃 피우기</button>
+        <div class="flex justify-center gap-6">
+            <button id="close-modal-btn" class="text-lg text-gray-400 font-semibold px-4">닫기</button>
+            <button id="send-btn" class="text-lg font-bold bg-rose-600 text-white px-8 py-2.5 rounded-full shadow-lg">꽃 피우기</button>
         </div>
     </div>
 
     <div id="tooltip" class="tooltip"></div>
 
     <script>
-        // 초기 설정
         const firebaseConfig = JSON.parse(__firebase_config);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'jeju-43-memorial-final';
 
+        // Firebase 초기화
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -166,11 +177,41 @@
 
         function showToast(m) {
             const t = document.getElementById('toast');
-            t.innerText = m; t.style.display = 'block';
-            setTimeout(() => t.style.display = 'none', 3000);
+            if (t) {
+                t.innerText = m; t.style.display = 'block';
+                setTimeout(() => t.style.display = 'none', 3000);
+            }
         }
 
-        // 인증 로직 (최종 안정화 버전)
+        // 나뭇잎 생성 (미리보기 나무를 풍성하게)
+        function generateLeaves() {
+            const leafLayer = document.getElementById('leaf-layer');
+            const branches = document.querySelectorAll('#tree-branches path');
+            const leafColors = ['#064e3b', '#065f46', '#047857', '#064e3b'];
+
+            branches.forEach(branch => {
+                const length = branch.getTotalLength();
+                const step = 25;
+                for (let i = 0; i < length; i += step) {
+                    const point = branch.getPointAtLength(i);
+                    for (let j = 0; j < 2; j++) {
+                        const leaf = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+                        const ox = (Math.random() - 0.5) * 50;
+                        const oy = (Math.random() - 0.5) * 50;
+                        leaf.setAttribute("cx", point.x + ox);
+                        leaf.setAttribute("cy", point.y + oy);
+                        leaf.setAttribute("rx", 7 + Math.random() * 9);
+                        leaf.setAttribute("ry", 5 + Math.random() * 5);
+                        leaf.setAttribute("fill", leafColors[Math.floor(Math.random() * leafColors.length)]);
+                        leaf.setAttribute("opacity", "0.8");
+                        leaf.setAttribute("transform", `rotate(${Math.random() * 360} ${point.x + ox} ${point.y + oy})`);
+                        leafLayer.appendChild(leaf);
+                    }
+                }
+            });
+        }
+
+        // 인증 처리 (익명 로그인)
         async function startAuth() {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -180,20 +221,19 @@
                 }
             } catch (error) {
                 console.error("Auth Error:", error);
-                if (error.code === 'auth/admin-restricted-operation') {
-                    showToast("관리자 설정에서 '익명 로그인'을 허용해주세요.");
+                if (error.code !== 'auth/admin-restricted-operation') {
+                    try { await auth.signInAnonymously(); } catch (e) {}
                 }
             }
         }
 
         auth.onAuthStateChanged((user) => {
             if (user) {
-                console.log("인증 완료:", user.uid);
                 loadFlowers();
             }
         });
 
-        // 꽃 불러오기
+        // 꽃 불러오기 (Firestore 자동 로드)
         function loadFlowers() {
             const flowerColl = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers');
             flowerColl.onSnapshot((snapshot) => {
@@ -207,14 +247,14 @@
                     }
                 });
             }, (err) => {
-                console.error("데이터 로드 에러:", err);
+                console.error("Firestore Listen Error:", err);
             });
         }
 
-        // 꽃 피우기 함수
+        // 꽃 피우기 (Firebase 저장)
         async function plantFlower() {
             const user = auth.currentUser;
-            if (!user) return showToast("사용자 인증 중입니다...");
+            if (!user) return showToast("인증 진행 중입니다...");
 
             const input = document.getElementById('msg-input');
             const msg = input.value.trim();
@@ -225,9 +265,9 @@
             btn.innerText = "피우는 중...";
 
             try {
-                // 나무 형태에 맞게 랜덤 좌표 생성 (가운데 집중)
-                const x = 20 + (Math.random() * 60); 
-                const y = 15 + (Math.random() * 50);
+                // 나무 영역 내 랜덤 좌표
+                const x = 25 + (Math.random() * 50); 
+                const y = 10 + (Math.random() * 55);
 
                 await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('flowers').add({
                     message: msg,
@@ -239,16 +279,15 @@
 
                 closeModal();
                 showToast("동백꽃 한 송이가 피어났습니다.");
-                triggerEffect(x, y);
             } catch (e) {
-                console.error("저장 에러:", e);
+                console.error("Save Error:", e);
                 showToast("꽃을 피우지 못했습니다.");
                 btn.disabled = false;
                 btn.innerText = "꽃 피우기";
             }
         }
 
-        // 개별 꽃 렌더링
+        // 화면에 꽃 렌더링
         function renderFlower(x, y, msg) {
             const layer = document.getElementById('flower-layer');
             const wrap = document.createElement('div');
@@ -257,7 +296,7 @@
             wrap.style.top = y + '%';
             
             wrap.innerHTML = `
-                <svg viewBox="0 0 100 100" width="38" height="38" style="filter: drop-shadow(0 2px 5px rgba(0,0,0,0.6))">
+                <svg viewBox="0 0 100 100" width="40" height="40" style="filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6))">
                     <circle cx="50" cy="32" r="23" fill="#e11d48" />
                     <circle cx="50" cy="68" r="23" fill="#e11d48" />
                     <circle cx="32" cy="50" r="23" fill="#e11d48" />
@@ -266,54 +305,32 @@
                 </svg>
             `;
 
-            // 클릭 및 터치 이벤트 통합 핸들러
             const handleInteraction = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                
                 const tt = document.getElementById('tooltip');
                 tt.innerText = msg;
                 tt.style.display = 'block';
-                
                 const clientX = e.clientX || (e.touches && e.touches[0].clientX);
                 const clientY = e.clientY || (e.touches && e.touches[0].clientY);
                 
-                // 툴팁 위치 조정
                 let tx = clientX - 130;
                 let ty = clientY - 80;
-                
                 if (tx < 10) tx = 10;
                 if (tx + 260 > window.innerWidth) tx = window.innerWidth - 270;
                 
-                tt.style.left = tx + 'px';
-                tt.style.top = ty + 'px';
-                
-                setTimeout(() => tt.style.display = 'none', 3500);
+                tt.style.left = tx + 'px'; tt.style.top = ty + 'px';
+                setTimeout(() => tt.style.display = 'none', 4000);
             };
 
             wrap.addEventListener('mousedown', handleInteraction);
             wrap.addEventListener('touchstart', handleInteraction, {passive: false});
 
             layer.appendChild(wrap);
-            // 등장 애니메이션
             setTimeout(() => wrap.style.transform = `translate(-50%, -50%) scale(1) rotate(${Math.random()*360}deg)`, 50);
         }
 
-        function triggerEffect(x, y) {
-            // 꽃이 필 때 주변으로 퍼지는 효과
-            for(let i=0; i<5; i++) {
-                const p = document.createElement('div');
-                p.className = 'petal-effect';
-                p.style.left = x + '%';
-                p.style.top = y + '%';
-                p.style.setProperty('--dx', (Math.random()*200 - 100) + 'px');
-                p.style.setProperty('--dy', (Math.random()*200 - 100) + 'px');
-                document.getElementById('memorial-tree-container').appendChild(p);
-                setTimeout(() => p.remove(), 2000);
-            }
-        }
-
-        // 인트로 시작 버튼
+        // 인트로 버튼 이벤트
         document.getElementById('start-memorial-btn').onclick = () => {
             document.getElementById('intro-screen').style.opacity = '0';
             setTimeout(() => {
@@ -321,6 +338,7 @@
                 document.getElementById('memorial-tree-container').style.opacity = '1';
                 document.getElementById('main-ui').style.opacity = '1';
                 document.getElementById('write-trigger').style.display = 'block';
+                generateLeaves();
             }, 1200);
         };
 
@@ -336,9 +354,9 @@
         document.getElementById('close-modal-btn').onclick = closeModal;
         document.getElementById('send-btn').onclick = plantFlower;
 
-        // 배경 별 뿌리기
+        // 배경 별 생성
         const starsContainer = document.getElementById('stars');
-        for(let i=0; i<100; i++) {
+        for(let i=0; i<80; i++) {
             const s = document.createElement('div');
             s.className = 'star';
             s.style.left = Math.random()*100+'%'; s.style.top = Math.random()*100+'%';
@@ -347,8 +365,7 @@
             starsContainer.appendChild(s);
         }
 
-        // 초기 실행
-        startAuth();
+        window.onload = startAuth;
     </script>
 </body>
 </html>
